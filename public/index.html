@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Takeout Viewer</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <!-- Onboarding Screen -->
+  <div id="onboarding" class="hidden">
+    <div class="onboarding-center">
+      <div class="onboarding-logo">📦</div>
+      <h1>Takeout Viewer</h1>
+      <p class="onboarding-subtitle">Browse your Google Takeout archive — Gmail, Drive, Calendar, Contacts, Keep, Chrome &amp; more</p>
+
+      <div id="drop-zone" class="drop-zone">
+        <div class="drop-zone-inner">
+          <div class="drop-icon">📂</div>
+          <p>Drop your Takeout zip file(s) here</p>
+          <p class="drop-sub">or</p>
+          <label class="btn-primary" for="file-input">Choose File(s)</label>
+          <input type="file" id="file-input" multiple accept=".zip" style="display:none">
+        </div>
+      </div>
+
+      <div id="selected-files" class="selected-files hidden"></div>
+      <button id="import-btn" class="btn-primary import-btn hidden">Import</button>
+
+      <div id="progress-area" class="progress-area hidden">
+        <div class="progress-stage" id="progress-stage">Starting...</div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar" id="progress-bar"></div>
+        </div>
+        <div class="progress-message" id="progress-message"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div id="app" class="hidden">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <button class="menu-btn" id="sidebar-toggle" title="Toggle sidebar">☰</button>
+        <span class="app-logo">📦</span>
+        <span class="app-name">Takeout Viewer</span>
+      </div>
+      <div class="header-search">
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="search-input" class="search-input" placeholder="Search…" autocomplete="off">
+          <button class="search-clear hidden" id="search-clear">✕</button>
+        </div>
+      </div>
+      <div class="header-right">
+        <button class="btn-import-new" id="reimport-btn" title="Import new archive">⊕ Import</button>
+        <button class="btn-icon" id="reset-btn" title="Reset all data">🗑</button>
+      </div>
+    </header>
+
+    <!-- Body -->
+    <div class="body">
+      <!-- Sidebar -->
+      <nav class="sidebar" id="sidebar">
+        <ul class="nav-tabs" id="nav-tabs">
+          <li class="nav-item active" data-tab="mail">
+            <span class="nav-icon">✉️</span>
+            <span class="nav-label">Mail</span>
+          </li>
+          <li class="nav-item" data-tab="drive">
+            <span class="nav-icon">📁</span>
+            <span class="nav-label">Drive</span>
+          </li>
+          <li class="nav-item" data-tab="calendar">
+            <span class="nav-icon">📅</span>
+            <span class="nav-label">Calendar</span>
+          </li>
+          <li class="nav-item" data-tab="contacts">
+            <span class="nav-icon">👤</span>
+            <span class="nav-label">Contacts</span>
+          </li>
+          <li class="nav-item" data-tab="keep">
+            <span class="nav-icon">🗒️</span>
+            <span class="nav-label">Keep</span>
+          </li>
+          <li class="nav-item" data-tab="tasks">
+            <span class="nav-icon">✅</span>
+            <span class="nav-label">Tasks</span>
+          </li>
+          <li class="nav-item" data-tab="chrome">
+            <span class="nav-icon">🌐</span>
+            <span class="nav-label">Chrome</span>
+          </li>
+          <li class="nav-item" data-tab="chat">
+            <span class="nav-icon">💬</span>
+            <span class="nav-label">Chat</span>
+          </li>
+          <li class="nav-item" data-tab="saved">
+            <span class="nav-icon">🔖</span>
+            <span class="nav-label">Saved</span>
+          </li>
+        </ul>
+
+        <!-- Per-tab sidebar sections -->
+        <div class="sidebar-section" id="mail-sidebar">
+          <ul class="folder-list" id="folder-list"></ul>
+        </div>
+        <div class="sidebar-section hidden" id="drive-sidebar">
+          <ul class="folder-list" id="drive-folder-list"></ul>
+        </div>
+        <div class="sidebar-section hidden" id="calendar-sidebar">
+          <div class="sidebar-nav-row active" id="cal-list-btn">📋 List</div>
+          <div class="sidebar-nav-row" id="cal-grid-btn">🗓 Month</div>
+        </div>
+        <div class="sidebar-section hidden" id="contacts-sidebar"></div>
+        <div class="sidebar-section hidden" id="keep-sidebar">
+          <div class="sidebar-nav-row" id="keep-all-btn">🗒️ All Notes</div>
+          <div id="keep-labels-list"></div>
+        </div>
+        <div class="sidebar-section hidden" id="tasks-sidebar">
+          <div class="sidebar-nav-row active" id="tasks-all-btn">All Tasks</div>
+          <div class="sidebar-nav-row" id="tasks-pending-btn">⏳ Pending</div>
+          <div class="sidebar-nav-row" id="tasks-done-btn">✅ Completed</div>
+        </div>
+        <div class="sidebar-section hidden" id="chrome-sidebar">
+          <div class="sidebar-nav-row active" id="chrome-bookmarks-btn">🔖 Bookmarks</div>
+          <div class="sidebar-nav-row" id="chrome-history-btn">🕐 History</div>
+          <div id="chrome-folders-list"></div>
+        </div>
+        <div class="sidebar-section hidden" id="chat-sidebar">
+          <div id="chat-conv-list"></div>
+        </div>
+        <div class="sidebar-section hidden" id="saved-sidebar"></div>
+      </nav>
+
+      <!-- Content -->
+      <main class="content" id="content">
+
+        <!-- Mail view -->
+        <div id="view-mail" class="view">
+          <div class="email-list-pane" id="email-list-pane">
+            <div class="list-header"><span id="email-count-label"></span></div>
+            <div id="email-list"></div>
+            <div class="pagination" id="mail-pagination"></div>
+          </div>
+          <div class="email-detail-pane hidden" id="email-detail-pane">
+            <button class="back-btn" id="email-back-btn">← Back</button>
+            <div id="email-detail-content"></div>
+          </div>
+        </div>
+
+        <!-- Drive view -->
+        <div id="view-drive" class="view hidden">
+          <div class="drive-toolbar">
+            <span id="drive-count-label"></span>
+            <div class="view-toggle">
+              <button class="view-btn active" id="drive-grid-btn" title="Grid view">⊞</button>
+              <button class="view-btn" id="drive-list-btn" title="List view">☰</button>
+            </div>
+          </div>
+          <div id="drive-files"></div>
+          <div class="pagination" id="drive-pagination"></div>
+        </div>
+
+        <!-- Calendar view -->
+        <div id="view-calendar" class="view hidden">
+          <div class="cal-toolbar">
+            <div class="cal-nav">
+              <button id="cal-prev">←</button>
+              <span id="cal-title"></span>
+              <button id="cal-next">→</button>
+            </div>
+            <span id="cal-count-label"></span>
+          </div>
+          <div id="calendar-content"></div>
+        </div>
+
+        <!-- Contacts view -->
+        <div id="view-contacts" class="view hidden">
+          <div class="list-header"><span id="contacts-count-label"></span></div>
+          <div id="contacts-grid"></div>
+          <div class="modal-overlay hidden" id="contact-modal-overlay">
+            <div class="modal" id="contact-modal">
+              <button class="modal-close" id="contact-modal-close">✕</button>
+              <div id="contact-modal-content"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Keep view -->
+        <div id="view-keep" class="view hidden">
+          <div class="list-header"><span id="keep-count-label"></span></div>
+          <div id="keep-grid"></div>
+          <div class="pagination" id="keep-pagination"></div>
+        </div>
+
+        <!-- Tasks view -->
+        <div id="view-tasks" class="view hidden">
+          <div class="list-header"><span id="tasks-count-label"></span></div>
+          <div class="tasks-columns" id="tasks-columns">
+            <div class="tasks-col">
+              <div class="tasks-col-header">⏳ Pending</div>
+              <div id="tasks-pending-list"></div>
+            </div>
+            <div class="tasks-col">
+              <div class="tasks-col-header">✅ Completed</div>
+              <div id="tasks-completed-list"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chrome view -->
+        <div id="view-chrome" class="view hidden">
+          <div class="list-header"><span id="chrome-count-label"></span></div>
+          <div id="chrome-content"></div>
+          <div class="pagination" id="chrome-pagination"></div>
+        </div>
+
+        <!-- Chat view -->
+        <div id="view-chat" class="view hidden">
+          <div class="chat-layout">
+            <div class="chat-conv-pane" id="chat-conv-pane">
+              <div class="list-header"><span id="chat-count-label"></span></div>
+              <div id="chat-conv-items"></div>
+            </div>
+            <div class="chat-messages-pane" id="chat-messages-pane">
+              <div class="chat-empty-state">
+                <span class="empty-state-icon">💬</span>
+                <span>Select a conversation</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Saved view -->
+        <div id="view-saved" class="view hidden">
+          <div class="list-header"><span id="saved-count-label"></span></div>
+          <div id="saved-list"></div>
+          <div class="pagination" id="saved-pagination"></div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Drive preview modal (global, outside main layout) -->
+  <div class="modal-overlay hidden" id="drive-preview-overlay">
+    <div class="drive-preview-modal">
+      <div class="drive-preview-header">
+        <span id="drive-preview-title"></span>
+        <button class="modal-close" id="drive-preview-close">✕</button>
+      </div>
+      <div id="drive-preview-body"></div>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script src="/js/mail.js"></script>
+  <script src="/js/drive.js"></script>
+  <script src="/js/calendar.js"></script>
+  <script src="/js/contacts.js"></script>
+  <script src="/js/keep.js"></script>
+  <script src="/js/tasks.js"></script>
+  <script src="/js/chrome.js"></script>
+  <script src="/js/chat.js"></script>
+  <script src="/js/saved.js"></script>
+</body>
+</html>

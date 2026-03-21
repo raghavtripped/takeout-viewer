@@ -1,0 +1,285 @@
+'use strict';
+
+const fs = require('fs');
+const readline = require('readline');
+
+// RFC 2047 encoded-word decoder: =?UTF-8?B?...?= or =?UTF-8?Q?...?=
+function decodeEncodedWords(str) {
+  if (!str) return '';
+  return str.replace(/=\?([^?]+)\?([BbQq])\?([^?]*)\?=/g, (_, charset, encoding, text) => {
+    try {
+      if (encoding.toUpperCase() === 'B') {
+        return Buffer.from(text, 'base64').toString('utf8');
+      } else {
+        // Quoted-printable: replace _ with space, then decode =XX
+        const qp = text.replace(/_/g, ' ').replace(/=([0-9A-Fa-f]{2})/g, (m, h) =>
+          String.fromCharCode(parseInt(h, 16))
+        );
+        return qp;
+      }
+    } catch {
+      return text;
+    }
+  });
+}
+
+function parseDate(raw) {
+  if (!raw) return null;
+  // Strip named timezone abbreviations that confuse Date.parse
+  const cleaned = raw.replace(/\s+\([A-Z]{2,5}\)\s*$/, '').trim();
+  const d = new Date(cleaned);
+  if (!isNaN(d.getTime())) return d;
+  // Fallback: try just parsing as-is
+  const d2 = new Date(raw);
+  if (!isNaN(d2.getTime())) return d2;
+  return null;
+}
+
+function parseHeaderValue(lines) {
+  // Join folded header lines (lines starting with whitespace are continuations)
+  return lines.join(' ').replace(/\s+/g, ' ').trim();
+}
+
+// Decode MIME base64/QP body parts
+function decodePart(content, encoding) {
+  if (!encoding) return content;
+  const enc = encoding.toLowerCase().trim();
+  if (enc === 'base64') {
+    try {
+      return Buffer.from(content.replace(/\s/g, ''), 'base64').toString('utf8');
+    } catch { return content; }
+  }
+  if (enc === 'quoted-printable') {
+    return content
+      .replace(/=\r?\n/g, '')
+      .replace(/=([0-9A-Fa-f]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+  }
+  return content;
+}
+
+// Recursive MIME part extractor — returns { textPlain, textHtml }
+function extractParts(rawBody, boundary) {
+  let textPlain = '';
+  let textHtml = '';
+
+  if (!boundary) {
+    // Single part — try to detect type from raw content
+    return { textPlain: rawBody.trim(), textHtml: '' };
+  }
+
+  const delimRe = new RegExp('--' + boundary.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const parts = rawBody.split(delimRe);
+
+  for (const part of parts) {
+    if (part.startsWith('--') || part.trim() === '') continue;
+
+    const sepIdx = part.indexOf('\n\n');
+    if (sepIdx === -1) continue;
+
+    const headerBlock = part.slice(0, sepIdx);
+    const body = part.slice(sepIdx + 2);
+
+    const headers = {};
+    for (const line of headerBlock.split('\n')) {
+      const m = line.match(/^([\w-]+):\s*(.+)/i);
+      if (m) headers[m[1].toLowerCase()] = m[2].trim();
+    }
+
+    const ct = headers['content-type'] || '';
+    const ce = headers['content-transfer-encoding'] || '';
+
+    // Check for nested multipart
+    const subBoundaryMatch = ct.match(/boundary="?([^";\s]+)"?/i);
+    if (ct.startsWith('multipart/') && subBoundaryMatch) {
+      const sub = extractParts(body, subBoundaryMatch[1]);
+      if (!textPlain && sub.textPlain) textPlain = sub.textPlain;
+      if (!textHtml && sub.textHtml) textHtml = sub.textHtml;
+      continue;
+    }
+
+    const decoded = decodePart(body, ce);
+    if (ct.startsWith('text/plain') && !textPlain) {
+      textPlain = decoded;
+    } else if (ct.startsWith('text/html') && !textHtml) {
+      textHtml = decoded;
+    }
+  }
+
+  return { textPlain, textHtml };
+}
+
+function stripHtmlTags(html) {
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function labelsToFolder(labels) {
+  if (!labels) return 'All Mail';
+  const lower = labels.toLowerCase();
+  if (lower.includes('inbox')) return 'Inbox';
+  if (lower.includes('sent')) return 'Sent';
+  if (lower.includes('trash')) return 'Trash';
+  if (lower.includes('spam')) return 'Spam';
+  if (lower.includes('draft')) return 'Drafts';
+  if (lower.includes('starred')) return 'Starred';
+  return 'All Mail';
+}
+
+function extractAddressName(addr) {
+  if (!addr) return '';
+  // "Name <email>" → Name; otherwise email as-is
+  const m = addr.match(/^"?([^"<]+?)"?\s*<[^>]+>/);
+  if (m) return m[1].trim();
+  return addr.trim();
+}
+
+/**
+ * Stream-parse an mbox file, calling onEmail(metadata, fullEmail) for each message.
+ * onEmail may be async — we await it before continuing.
+ */
+async function parseMbox(filePath, onEmail) {
+  return new Promise((resolve, reject) => {
+    const rl = readline.createInterface({
+      input: fs.createReadStream(filePath, { encoding: 'utf8' }),
+      crlfDelay: Infinity,
+    });
+
+    let buffer = [];
+    let count = 0;
+    let queue = Promise.resolve();
+
+    function flush() {
+      if (buffer.length === 0) return;
+      const raw = buffer.join('\n');
+      buffer = [];
+      count++;
+
+      queue = queue.then(async () => {
+        try {
+          await processMessage(raw, count, onEmail);
+        } catch (e) {
+          // Don't abort whole parse for one bad message
+          console.error(`[mbox] Error processing message ${count}:`, e.message);
+        }
+      });
+    }
+
+    rl.on('line', (line) => {
+      // mbox separator: line starting with "From " (note the space)
+      if (line.startsWith('From ') && buffer.length > 0) {
+        flush();
+      }
+      buffer.push(line);
+    });
+
+    rl.on('close', () => {
+      flush();
+      queue.then(() => resolve(count)).catch(reject);
+    });
+
+    rl.on('error', reject);
+  });
+}
+
+async function processMessage(raw, index, onEmail) {
+  // Split headers from body at first blank line
+  const sepIdx = raw.indexOf('\n\n');
+  if (sepIdx === -1) return;
+
+  const headerBlock = raw.slice(0, sepIdx);
+  const rawBody = raw.slice(sepIdx + 2);
+
+  // Parse headers — handle folding (continuation lines start with whitespace)
+  const headers = {};
+  let currentKey = null;
+  let currentVal = [];
+
+  for (const line of headerBlock.split('\n')) {
+    if (/^[\t ]/.test(line) && currentKey) {
+      currentVal.push(line.trim());
+    } else {
+      if (currentKey) {
+        headers[currentKey] = parseHeaderValue(currentVal);
+      }
+      const m = line.match(/^([\w-]+):\s*(.*)/i);
+      if (m) {
+        currentKey = m[1].toLowerCase();
+        currentVal = [m[2]];
+      } else {
+        currentKey = null;
+        currentVal = [];
+      }
+    }
+  }
+  if (currentKey) {
+    headers[currentKey] = parseHeaderValue(currentVal);
+  }
+
+  const subject = decodeEncodedWords(headers['subject'] || '(no subject)');
+  const from = decodeEncodedWords(headers['from'] || '');
+  const to = decodeEncodedWords(headers['to'] || '');
+  const dateRaw = headers['date'] || '';
+  const labels = headers['x-gmail-labels'] || '';
+  const messageId = headers['message-id'] || `msg-${index}`;
+  const ct = headers['content-type'] || 'text/plain';
+
+  const dateObj = parseDate(dateRaw);
+  const timestamp = dateObj ? dateObj.getTime() : 0;
+  const dateIso = dateObj ? dateObj.toISOString() : null;
+
+  // Extract boundary for multipart
+  const boundaryMatch = ct.match(/boundary="?([^";\s]+)"?/i);
+  const boundary = boundaryMatch ? boundaryMatch[1] : null;
+
+  const { textPlain, textHtml } = extractParts(rawBody, boundary);
+
+  // Prefer plain text for snippet; fall back to stripping HTML
+  const snippetSource = textPlain || stripHtmlTags(textHtml);
+  const snippet = snippetSource.replace(/\s+/g, ' ').trim().slice(0, 200);
+
+  // Detect attachments: look for Content-Disposition: attachment in raw
+  const hasAttachment = /content-disposition:\s*attachment/i.test(raw);
+
+  // Parse label list
+  const labelList = labels
+    ? labels.split(',').map((l) => l.trim().replace(/^"|"$/g, '')).filter(Boolean)
+    : [];
+
+  const folder = labelsToFolder(labels);
+
+  // Sanitize ID
+  const safeId = `email-${index}-${Math.abs(messageId.split('').reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 0))}`;
+
+  const metadata = {
+    id: safeId,
+    subject,
+    from,
+    fromName: extractAddressName(from),
+    to,
+    date: dateIso,
+    timestamp,
+    snippet,
+    labels: labelList,
+    folder,
+    hasAttachment,
+  };
+
+  const fullEmail = {
+    ...metadata,
+    bodyText: textPlain,
+    bodyHtml: textHtml,
+  };
+
+  await onEmail(metadata, fullEmail);
+}
+
+module.exports = { parseMbox };
