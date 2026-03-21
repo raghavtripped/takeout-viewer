@@ -28,24 +28,126 @@ You export your data from Google, drop the zip file into this app, and it indexe
 
 ## Quick Start
 
-**Mac / Linux**
+This is a local app — it runs on your own computer, not on the internet. Setup takes about 5 minutes and you only do it once. There are three steps: install Node.js, download this app, and run it.
+
+---
+
+### Step 1 — Install Node.js
+
+Node.js is the engine that runs this app. You probably don't have it yet.
+
+1. Go to **[nodejs.org](https://nodejs.org)**
+2. Click the big **"LTS"** download button (LTS = Long Term Support, the stable version)
+3. Open the downloaded file and follow the installer — just click Next/Continue through all the steps, no custom options needed
+4. When it finishes, **close and reopen any terminal windows you have open**
+
+To check it worked, open a terminal (see Step 2 for how to do that) and type:
+```
+node --version
+```
+You should see something like `v22.0.0`. Any version starting with 18 or higher is fine.
+
+---
+
+### Step 2 — Download this app
+
+**If you know what Git is:**
+```bash
+git clone https://github.com/raghavtripped/takeout-viewer.git
+cd takeout-viewer
+```
+
+**If you've never used Git before — download as a zip instead:**
+
+1. Go to **[github.com/raghavtripped/takeout-viewer](https://github.com/raghavtripped/takeout-viewer)**
+2. Click the green **"Code"** button near the top right
+3. Click **"Download ZIP"**
+4. Once downloaded, find the zip file (probably in your Downloads folder) and **unzip it** — on Mac double-click it, on Windows right-click → "Extract All"
+5. You'll get a folder called `takeout-viewer-main` — move it somewhere you'll remember, like your Desktop or Documents
+
+---
+
+### Step 3 — Open a terminal in the app folder
+
+A terminal is a text-based window where you type commands. This is the only time you need it — once the app is running you just use your browser.
+
+**On Mac:**
+1. Open **Finder** and navigate to the `takeout-viewer-main` folder
+2. Right-click the folder → **"New Terminal at Folder"**
+   - If you don't see that option: go to System Settings → Privacy & Security → Developer Tools, or open Terminal from Applications → Utilities, then drag the folder onto the Terminal window
+
+**On Windows:**
+1. Open **File Explorer** and navigate to the `takeout-viewer-main` folder
+2. Click in the address bar at the top (where it shows the folder path), type `cmd`, and press Enter
+   - This opens a Command Prompt already pointed at that folder
+
+**How to tell it worked:** The terminal should show a path ending in `takeout-viewer-main` or `takeout-viewer`, something like:
+```
+your-name@computer takeout-viewer-main %
+```
+
+---
+
+### Step 4 — Run the app
+
+**Mac / Linux** — type this and press Enter:
 ```bash
 ./setup.sh
 ```
-*(First time only: `chmod +x setup.sh` if you get a permissions error)*
 
-**Windows**
-Double-click `setup.bat`
-
-**Manual**
+If you see a "permission denied" error, run this first, then try again:
 ```bash
-npm install
+chmod +x setup.sh && ./setup.sh
+```
+
+**Windows** — you can either:
+- Double-click `setup.bat` in File Explorer, **or**
+- In the Command Prompt you opened, type `setup.bat` and press Enter
+
+**What happens next:** The terminal will show some text as it installs dependencies (takes 30–60 seconds), then print:
+```
+Open http://localhost:3000 in your browser
+```
+
+---
+
+### Step 5 — Open the app
+
+Open any browser (Chrome, Safari, Firefox) and go to:
+
+**[http://localhost:3000](http://localhost:3000)**
+
+You should see the Takeout Viewer welcome screen. That's it — the app is running.
+
+---
+
+### Stopping and restarting the app
+
+**To stop:** Click on the terminal window and press `Ctrl+C` (on both Mac and Windows).
+
+**To start again later:** You don't need to reinstall anything. Just open a terminal in the app folder again and run `./setup.sh` (Mac) or `setup.bat` (Windows) — or simply:
+```bash
 npm start
 ```
 
-Open **http://localhost:3000** in your browser.
+---
 
-Requires **Node.js v18 or newer** — download from [nodejs.org](https://nodejs.org).
+### Troubleshooting
+
+**"command not found: node"**
+Node.js didn't install correctly, or you need to close and reopen your terminal. Try reopening the terminal and running `node --version` again. If it still fails, reinstall Node.js from [nodejs.org](https://nodejs.org).
+
+**"permission denied: ./setup.sh"**
+Run `chmod +x setup.sh` first, then run `./setup.sh` again.
+
+**"Port 3000 is already in use"**
+Something else on your computer is using port 3000. The app will automatically try port 3001, then 3002, then 3003. The terminal will tell you which port it ended up on — open that URL in your browser instead (e.g. `http://localhost:3001`).
+
+**The page won't load in the browser**
+Make sure the terminal is still running (it needs to stay open while you use the app). If you accidentally closed it, just start the app again with `npm start`.
+
+**npm install fails with errors**
+Make sure Node.js v18 or newer is installed (`node --version` to check). If the version is correct, try deleting the `node_modules` folder and running `npm install` again.
 
 ---
 
