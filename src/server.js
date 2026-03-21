@@ -422,19 +422,30 @@ app.post('/api/reset', (req, res) => {
 
 // ── Start (with port fallback) ────────────────────────────────────────────────
 
-function startServer(port, attemptsLeft) {
-  const server = app.listen(port, () => {
-    console.log(`\n  Takeout Viewer running at http://localhost:${port}\n`);
-  });
-  server.on('error', (err) => {
-    if (err.code === 'EADDRINUSE' && attemptsLeft > 0) {
-      console.warn(`  Port ${port} in use, trying ${port + 1}...`);
-      startServer(port + 1, attemptsLeft - 1);
-    } else {
-      console.error('  Failed to start server:', err.message);
-      process.exit(1);
-    }
+function tryListen(port, attemptsLeft) {
+  return new Promise((resolve, reject) => {
+    const server = app.listen(port, () => {
+      console.log(`\n  Takeout Viewer running at http://localhost:${port}\n`);
+      resolve(port);
+    });
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE' && attemptsLeft > 0) {
+        console.warn(`  Port ${port} in use, trying ${port + 1}...`);
+        tryListen(port + 1, attemptsLeft - 1).then(resolve).catch(reject);
+      } else {
+        reject(err);
+      }
+    });
   });
 }
 
-startServer(PORT, 3);
+// When run directly (`npm start`), start immediately.
+// When required by Electron, export startServer() instead.
+if (require.main === module) {
+  tryListen(PORT, 3).catch((err) => {
+    console.error('  Failed to start server:', err.message);
+    process.exit(1);
+  });
+}
+
+module.exports = { startServer: () => tryListen(PORT, 3) };

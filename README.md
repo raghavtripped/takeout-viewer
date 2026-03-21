@@ -1,14 +1,15 @@
 # Takeout Viewer
 
-A local web app that lets you browse your entire Google history — email, files, calendar, contacts, notes, tasks, bookmarks, chat, and saved links — without uploading anything to the cloud.
+A local app that lets you browse your entire Google history — email, files, calendar, contacts, notes, tasks, bookmarks, chat, and saved links — without uploading anything to the cloud.
 
-You export your data from Google, drop the zip file into this app, and it indexes everything into a fast, searchable interface that looks and feels like the Google products you're used to.
+You export your data from Google, drop the zip file into the app, and it indexes everything into a fast, searchable interface that looks and feels like the Google products you're used to.
 
 ---
 
 ## Table of Contents
 
-- [Quick Start](#quick-start)
+- [Install the Desktop App (Easiest)](#install-the-desktop-app-easiest)
+- [Run from Source (Developers)](#run-from-source-developers)
 - [How to Use It](#how-to-use-it)
   - [Getting your Google Takeout](#getting-your-google-takeout)
   - [Importing your archive](#importing-your-archive)
@@ -26,128 +27,131 @@ You export your data from Google, drop the zip file into this app, and it indexe
 
 ---
 
-## Quick Start
+## Install the Desktop App (Easiest)
 
-This is a local app — it runs on your own computer, not on the internet. Setup takes about 5 minutes and you only do it once. There are three steps: install Node.js, download this app, and run it.
+No terminal. No Node.js. Just download and double-click — exactly like installing any other app.
+
+### Mac
+
+1. Go to the [**Releases page**](https://github.com/raghavtripped/takeout-viewer/releases)
+2. Download the file ending in `.dmg`
+3. Open the `.dmg` file
+4. Drag **Takeout Viewer** into your Applications folder
+5. Open it from Applications (or Spotlight — press `⌘ Space` and type "Takeout Viewer")
+
+> **"App can't be opened because it's from an unidentified developer"?**
+> This happens because the app isn't signed with an Apple certificate. Right-click the app → **Open** → **Open** again in the dialog. You only have to do this once.
+
+### Windows
+
+1. Go to the [**Releases page**](https://github.com/raghavtripped/takeout-viewer/releases)
+2. Download the file ending in `.exe`
+3. Run the installer — click through the prompts
+4. Open **Takeout Viewer** from the Start menu or your Desktop
+
+> **Windows Defender warning?** Click **More info** → **Run anyway**. This appears because the app isn't code-signed. It's safe — everything runs locally on your machine.
+
+### Where your data is stored
+
+The app stores your indexed archive in your system's app-data folder — never inside the app itself:
+- **Mac:** `~/Library/Application Support/Takeout Viewer/data/`
+- **Windows:** `C:\Users\<you>\AppData\Roaming\Takeout Viewer\data\`
+
+This means uninstalling and reinstalling the app does **not** delete your indexed data.
 
 ---
+
+## Build the Desktop App Yourself
+
+If you want to build the `.dmg` or `.exe` from source rather than downloading a release:
+
+```bash
+# Clone the repo
+git clone https://github.com/raghavtripped/takeout-viewer.git
+cd takeout-viewer
+
+# Install dependencies (requires Node.js v18+)
+npm install
+
+# Build for your current platform
+npm run build:mac    # → release/  produces a .dmg
+npm run build:win    # → release/  produces a .exe installer
+npm run build:linux  # → release/  produces an .AppImage
+```
+
+The built files appear in the `release/` folder.
+
+---
+
+## Run from Source (Developers)
+
+If you'd rather run it as a web app in your browser instead of as a desktop app:
+
+**Mac / Linux**
+```bash
+./setup.sh
+```
+
+**Windows**
+Double-click `setup.bat`
+
+**Manual**
+```bash
+npm install
+npm start
+```
+
+Then open **http://localhost:3000** in your browser.
+
+Requires **Node.js v18 or newer** — [nodejs.org](https://nodejs.org).
+
+<details>
+<summary>Never used a terminal before? Click here for detailed setup instructions.</summary>
 
 ### Step 1 — Install Node.js
 
-Node.js is the engine that runs this app. You probably don't have it yet.
-
-1. Go to **[nodejs.org](https://nodejs.org)**
-2. Click the big **"LTS"** download button (LTS = Long Term Support, the stable version)
-3. Open the downloaded file and follow the installer — just click Next/Continue through all the steps, no custom options needed
-4. When it finishes, **close and reopen any terminal windows you have open**
-
-To check it worked, open a terminal (see Step 2 for how to do that) and type:
-```
-node --version
-```
-You should see something like `v22.0.0`. Any version starting with 18 or higher is fine.
-
----
+1. Go to **[nodejs.org](https://nodejs.org)** and click the big **LTS** download button
+2. Run the installer — just click Next/Continue through everything
+3. Close and reopen any terminal windows after it finishes
+4. Verify it worked: open a terminal and type `node --version` — you should see `v22.x.x` or similar
 
 ### Step 2 — Download this app
 
-**If you know what Git is:**
+**With Git:**
 ```bash
 git clone https://github.com/raghavtripped/takeout-viewer.git
 cd takeout-viewer
 ```
 
-**If you've never used Git before — download as a zip instead:**
-
-1. Go to **[github.com/raghavtripped/takeout-viewer](https://github.com/raghavtripped/takeout-viewer)**
-2. Click the green **"Code"** button near the top right
-3. Click **"Download ZIP"**
-4. Once downloaded, find the zip file (probably in your Downloads folder) and **unzip it** — on Mac double-click it, on Windows right-click → "Extract All"
-5. You'll get a folder called `takeout-viewer-main` — move it somewhere you'll remember, like your Desktop or Documents
-
----
+**Without Git — download as a zip:**
+1. Click the green **Code** button on this page → **Download ZIP**
+2. Unzip the downloaded file
+3. Move the folder somewhere you'll remember (Desktop, Documents, etc.)
 
 ### Step 3 — Open a terminal in the app folder
 
-A terminal is a text-based window where you type commands. This is the only time you need it — once the app is running you just use your browser.
+**Mac:** Right-click the folder in Finder → **New Terminal at Folder**
 
-**On Mac:**
-1. Open **Finder** and navigate to the `takeout-viewer-main` folder
-2. Right-click the folder → **"New Terminal at Folder"**
-   - If you don't see that option: go to System Settings → Privacy & Security → Developer Tools, or open Terminal from Applications → Utilities, then drag the folder onto the Terminal window
-
-**On Windows:**
-1. Open **File Explorer** and navigate to the `takeout-viewer-main` folder
-2. Click in the address bar at the top (where it shows the folder path), type `cmd`, and press Enter
-   - This opens a Command Prompt already pointed at that folder
-
-**How to tell it worked:** The terminal should show a path ending in `takeout-viewer-main` or `takeout-viewer`, something like:
-```
-your-name@computer takeout-viewer-main %
-```
-
----
+**Windows:** Open the folder in File Explorer, click the address bar, type `cmd`, press Enter
 
 ### Step 4 — Run the app
 
-**Mac / Linux** — type this and press Enter:
-```bash
-./setup.sh
-```
+**Mac/Linux:** `./setup.sh` (if permission denied, run `chmod +x setup.sh` first)
 
-If you see a "permission denied" error, run this first, then try again:
-```bash
-chmod +x setup.sh && ./setup.sh
-```
-
-**Windows** — you can either:
-- Double-click `setup.bat` in File Explorer, **or**
-- In the Command Prompt you opened, type `setup.bat` and press Enter
-
-**What happens next:** The terminal will show some text as it installs dependencies (takes 30–60 seconds), then print:
-```
-Open http://localhost:3000 in your browser
-```
-
----
-
-### Step 5 — Open the app
-
-Open any browser (Chrome, Safari, Firefox) and go to:
-
-**[http://localhost:3000](http://localhost:3000)**
-
-You should see the Takeout Viewer welcome screen. That's it — the app is running.
-
----
-
-### Stopping and restarting the app
-
-**To stop:** Click on the terminal window and press `Ctrl+C` (on both Mac and Windows).
-
-**To start again later:** You don't need to reinstall anything. Just open a terminal in the app folder again and run `./setup.sh` (Mac) or `setup.bat` (Windows) — or simply:
-```bash
-npm start
-```
-
----
+**Windows:** `setup.bat`
 
 ### Troubleshooting
 
-**"command not found: node"**
-Node.js didn't install correctly, or you need to close and reopen your terminal. Try reopening the terminal and running `node --version` again. If it still fails, reinstall Node.js from [nodejs.org](https://nodejs.org).
+| Problem | Fix |
+|---|---|
+| `command not found: node` | Close and reopen the terminal after installing Node.js |
+| `permission denied: ./setup.sh` | Run `chmod +x setup.sh` then try again |
+| Port 3000 already in use | App tries 3001, 3002, 3003 automatically — check the terminal for the actual URL |
+| Page won't load | Make sure the terminal is still open and running |
 
-**"permission denied: ./setup.sh"**
-Run `chmod +x setup.sh` first, then run `./setup.sh` again.
+</details>
 
-**"Port 3000 is already in use"**
-Something else on your computer is using port 3000. The app will automatically try port 3001, then 3002, then 3003. The terminal will tell you which port it ended up on — open that URL in your browser instead (e.g. `http://localhost:3001`).
-
-**The page won't load in the browser**
-Make sure the terminal is still running (it needs to stay open while you use the app). If you accidentally closed it, just start the app again with `npm start`.
-
-**npm install fails with errors**
-Make sure Node.js v18 or newer is installed (`node --version` to check). If the version is correct, try deleting the `node_modules` folder and running `npm install` again.
+---
 
 ---
 

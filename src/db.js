@@ -3,7 +3,10 @@
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
+// When running inside Electron, the main process sets this env var to the
+// OS-appropriate writable location (e.g. ~/Library/Application Support/…).
+// When running as plain `npm start` it falls back to data/ beside the project.
+const DATA_DIR = process.env.TAKEOUT_DATA_DIR || path.join(__dirname, '..', 'data');
 const INDEX_PATH = path.join(DATA_DIR, 'index.json');
 const EMAILS_DIR = path.join(DATA_DIR, 'emails');
 
