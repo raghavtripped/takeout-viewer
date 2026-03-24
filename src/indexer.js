@@ -111,6 +111,20 @@ function findFile(base, filename) {
 
 // ── Section indexers ──────────────────────────────────────────────────────────
 
+function fmtDuration(seconds) {
+  if (seconds < 60) return `${Math.ceil(seconds)}s`;
+  if (seconds < 3600) return `${Math.ceil(seconds / 60)} min`;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.ceil((seconds % 3600) / 60);
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+function fmtBytes(b) {
+  if (b >= 1e9) return (b / 1e9).toFixed(1) + ' GB';
+  if (b >= 1e6) return (b / 1e6).toFixed(0) + ' MB';
+  return (b / 1e3).toFixed(0) + ' KB';
+}
+
 async function indexMboxFiles(mboxFiles) {
   const emails = [];
   let totalProcessed = 0;
@@ -118,16 +132,39 @@ async function indexMboxFiles(mboxFiles) {
   for (const mboxPath of mboxFiles) {
     checkAbort();
     emit('indexing_emails', `Parsing ${path.basename(mboxPath)}...`, 25);
+
+    const startTime = Date.now();
+    let lastProgressEmit = 0;
+
     const count = await parseMbox(mboxPath, async (metadata, fullEmail) => {
       checkAbort();
       db.writeEmail(metadata.id, fullEmail);
       emails.push(metadata);
       totalProcessed++;
-      if (totalProcessed % 100 === 0) {
-        emit('indexing_emails', `Indexed ${totalProcessed} emails...`, 25 + Math.min(30, Math.round(totalProcessed / 50)));
-      }
+    }, (bytesRead, totalBytes) => {
+      // Throttle progress emits to once per second
+      const now = Date.now();
+      if (now - lastProgressEmit < 1000) return;
+      lastProgressEmit = now;
+
+      const elapsed = (now - startTime) / 1000;           // seconds elapsed
+      const rate = bytesRead / elapsed;                     // bytes/sec
+      const remaining = rate > 0 ? (totalBytes - bytesRead) / rate : 0;
+      const pct = totalBytes > 0 ? bytesRead / totalBytes : 0;
+
+      const emailRate = elapsed > 0 ? (totalProcessed / elapsed).toFixed(0) : 0;
+      const msg = [
+        `Indexed ${totalProcessed.toLocaleString()} emails`,
+        `${fmtBytes(bytesRead)} / ${fmtBytes(totalBytes)} (${(pct * 100).toFixed(1)}%)`,
+        `${emailRate} emails/sec`,
+        remaining > 5 ? `~${fmtDuration(remaining)} left` : 'almost done…',
+      ].join(' · ');
+
+      const barPct = 25 + Math.round(pct * 30); // 25–55% range for email phase
+      emit('indexing_emails', msg, barPct);
     });
-    emit('indexing_emails', `Done with ${path.basename(mboxPath)}: ${count} messages`, 55);
+
+    emit('indexing_emails', `Done — ${count.toLocaleString()} emails indexed`, 55);
   }
 
   return emails;

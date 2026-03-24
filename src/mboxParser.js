@@ -146,12 +146,24 @@ function extractAddressName(addr) {
  * Stream-parse an mbox file, calling onEmail(metadata, fullEmail) for each message.
  * onEmail may be async — we await it before continuing.
  */
-async function parseMbox(filePath, onEmail) {
+/**
+ * Stream-parse an mbox file, calling onEmail(metadata, fullEmail) for each message.
+ * Optional onProgress(bytesRead, totalBytes) is called as data chunks arrive.
+ */
+async function parseMbox(filePath, onEmail, onProgress) {
   return new Promise((resolve, reject) => {
-    const rl = readline.createInterface({
-      input: fs.createReadStream(filePath, { encoding: 'utf8' }),
-      crlfDelay: Infinity,
-    });
+    const totalBytes = fs.statSync(filePath).size;
+    let bytesRead = 0;
+
+    const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
+    if (onProgress) {
+      stream.on('data', (chunk) => {
+        bytesRead += Buffer.byteLength(chunk, 'utf8');
+        onProgress(bytesRead, totalBytes);
+      });
+    }
+
+    const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
 
     let buffer = [];
     let count = 0;
