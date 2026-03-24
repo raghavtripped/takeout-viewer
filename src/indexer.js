@@ -29,31 +29,40 @@ function checkAbort() {
 }
 
 /**
- * Extract a single zip to the extracted dir using streaming (no full-file RAM load).
+ * Extract a single zip using unzipper.Extract (properly awaits all writes).
+ * Tracks bytes read from the input stream for ETA.
  */
 async function extractZip(zipPath, destDir) {
-  emit('extracting', `Extracting ${path.basename(zipPath)}...`, 0);
-  let count = 0;
+  const name = path.basename(zipPath);
+  const totalBytes = fs.statSync(zipPath).size;
+  let bytesRead = 0;
+  let lastEmit = 0;
+  const start = Date.now();
 
-  await fs.createReadStream(zipPath)
-    .pipe(unzipper.Parse({ forceStream: true }))
-    .on('entry', (entry) => {
-      const entryPath = path.join(destDir, entry.path);
-      if (entry.type === 'Directory') {
-        fs.mkdirSync(entryPath, { recursive: true });
-        entry.autodrain();
-      } else {
-        fs.mkdirSync(path.dirname(entryPath), { recursive: true });
-        entry.pipe(fs.createWriteStream(entryPath));
-        count++;
-        if (count % 50 === 0) {
-          emit('extracting', `Extracting ${path.basename(zipPath)}: ${count} files…`, 10);
-        }
-      }
-    })
-    .promise();
+  emit('extracting', `Extracting ${name} (${fmtBytes(totalBytes)})…`, 57);
 
-  emit('extracting', `Done extracting ${path.basename(zipPath)} (${count} files)`, 20);
+  await new Promise((resolve, reject) => {
+    const src = fs.createReadStream(zipPath);
+    src.on('data', (chunk) => {
+      bytesRead += chunk.length;
+      const now = Date.now();
+      if (now - lastEmit < 1000) return;
+      lastEmit = now;
+      const elapsed = (now - start) / 1000;
+      const rate = bytesRead / elapsed;
+      const remaining = rate > 0 ? (totalBytes - bytesRead) / rate : 0;
+      const pct = totalBytes > 0 ? bytesRead / totalBytes : 0;
+      const msg = `Extracting ${name} · ${fmtBytes(bytesRead)} / ${fmtBytes(totalBytes)} (${(pct * 100).toFixed(1)}%) · ${fmtDuration(remaining)} left`;
+      emit('extracting', msg, 57 + Math.round(pct * 10));
+    });
+    src.pipe(unzipper.Extract({ path: destDir }))
+      .on('finish', resolve)
+      .on('error', reject);
+    src.on('error', reject);
+  });
+
+  const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+  emit('extracting', `Done extracting ${name} in ${elapsed}s`, 67);
 }
 
 /**
@@ -171,146 +180,135 @@ async function indexMboxFiles(mboxFiles) {
 }
 
 function indexDriveFiles(extractedDir) {
-  emit('indexing_drive', 'Indexing Drive files...', 57);
+  const start = Date.now();
+  emit('indexing_drive', 'Scanning Drive folder…', 68);
   const driveDir = findDir(extractedDir, ['Google Drive', 'Drive']);
-  if (!driveDir) {
-    emit('indexing_drive', 'No Drive folder found, skipping.', 59);
-    return [];
-  }
+  if (!driveDir) { emit('indexing_drive', 'No Drive folder found, skipping.', 70); return []; }
 
+  const allPaths = walkDir(driveDir);
+  const total = allPaths.length;
   const driveFiles = [];
-  for (const filePath of walkDir(driveDir)) {
+  let lastEmit = 0;
+
+  for (const filePath of allPaths) {
     const rel = path.relative(driveDir, filePath);
     const stat = fs.statSync(filePath);
     const ext = path.extname(filePath).toLowerCase();
     const folder = path.dirname(rel) === '.' ? '/' : '/' + path.dirname(rel);
-    driveFiles.push({
-      id: `drive-${driveFiles.length}`,
-      name: path.basename(filePath),
-      path: rel,
-      fullPath: filePath,
-      folder,
-      size: stat.size,
-      modified: stat.mtime.toISOString(),
-      ext: ext || '',
-    });
+    driveFiles.push({ id: `drive-${driveFiles.length}`, name: path.basename(filePath),
+      path: rel, fullPath: filePath, folder, size: stat.size,
+      modified: stat.mtime.toISOString(), ext: ext || '' });
+
+    const now = Date.now();
+    if (now - lastEmit > 1000) {
+      lastEmit = now;
+      const elapsed = (now - start) / 1000;
+      const rate = driveFiles.length / elapsed;
+      const remaining = rate > 0 ? (total - driveFiles.length) / rate : 0;
+      emit('indexing_drive',
+        `Drive: ${driveFiles.length.toLocaleString()} / ${total.toLocaleString()} files · ~${fmtDuration(remaining)} left`,
+        68 + Math.round((driveFiles.length / total) * 4));
+    }
   }
 
-  emit('indexing_drive', `Indexed ${driveFiles.length} Drive files`, 60);
+  const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+  emit('indexing_drive', `Indexed ${driveFiles.length.toLocaleString()} Drive files in ${elapsed}s`, 72);
   return driveFiles;
 }
 
 function indexCalendar(extractedDir) {
-  emit('indexing_calendar', 'Indexing calendar...', 61);
-  // Only VEVENT ics files — exclude Tasks dir
+  const start = Date.now();
+  emit('indexing_calendar', 'Scanning calendar files…', 73);
   const tasksDir = findDir(extractedDir, ['Tasks']) || '';
-  const icsFiles = walkDir(extractedDir).filter(f =>
-    f.endsWith('.ics') && !f.startsWith(tasksDir)
-  );
-
-  if (icsFiles.length === 0) {
-    emit('indexing_calendar', 'No calendar files found, skipping.', 63);
-    return [];
-  }
+  const icsFiles = walkDir(extractedDir).filter(f => f.endsWith('.ics') && !f.startsWith(tasksDir));
+  if (icsFiles.length === 0) { emit('indexing_calendar', 'No calendar files found, skipping.', 74); return []; }
 
   let events = [];
-  for (const icsFile of icsFiles) {
-    try { events.push(...parseIcsFile(icsFile)); }
-    catch (e) { console.error(`[indexer] Failed to parse ICS ${icsFile}:`, e.message); }
+  for (let i = 0; i < icsFiles.length; i++) {
+    try { events.push(...parseIcsFile(icsFiles[i])); }
+    catch (e) { console.error(`[indexer] Failed to parse ICS ${icsFiles[i]}:`, e.message); }
+    if ((i + 1) % 5 === 0 || i === icsFiles.length - 1) {
+      emit('indexing_calendar', `Calendar: ${i + 1} / ${icsFiles.length} files · ${events.length} events so far`, 73);
+    }
   }
   events.sort((a, b) => a.startTimestamp - b.startTimestamp);
-  emit('indexing_calendar', `Indexed ${events.length} calendar events`, 64);
+  emit('indexing_calendar', `Indexed ${events.length.toLocaleString()} calendar events in ${((Date.now()-start)/1000).toFixed(1)}s`, 75);
   return events;
 }
 
 function indexContacts(extractedDir) {
-  emit('indexing_contacts', 'Indexing contacts...', 65);
+  const start = Date.now();
+  emit('indexing_contacts', 'Scanning contacts…', 76);
   const vcfFiles = walkDir(extractedDir).filter(f => f.endsWith('.vcf'));
-
-  if (vcfFiles.length === 0) {
-    emit('indexing_contacts', 'No contact files found, skipping.', 67);
-    return [];
-  }
+  if (vcfFiles.length === 0) { emit('indexing_contacts', 'No contact files found, skipping.', 77); return []; }
 
   let contacts = [];
-  for (const vcfFile of vcfFiles) {
-    try { contacts.push(...parseVcfFile(vcfFile)); }
-    catch (e) { console.error(`[indexer] Failed to parse VCF ${vcfFile}:`, e.message); }
+  for (let i = 0; i < vcfFiles.length; i++) {
+    try { contacts.push(...parseVcfFile(vcfFiles[i])); }
+    catch (e) { console.error(`[indexer] Failed to parse VCF ${vcfFiles[i]}:`, e.message); }
+    if ((i + 1) % 5 === 0 || i === vcfFiles.length - 1) {
+      emit('indexing_contacts', `Contacts: ${i + 1} / ${vcfFiles.length} files · ${contacts.length} contacts so far`, 76);
+    }
   }
   contacts = contacts.map((c, i) => ({ ...c, id: `contact-${i}` }));
-  emit('indexing_contacts', `Indexed ${contacts.length} contacts`, 68);
+  emit('indexing_contacts', `Indexed ${contacts.length.toLocaleString()} contacts in ${((Date.now()-start)/1000).toFixed(1)}s`, 78);
   return contacts;
 }
 
 function indexKeep(extractedDir) {
-  emit('indexing_keep', 'Indexing Keep notes...', 70);
+  const start = Date.now();
+  emit('indexing_keep', 'Scanning Keep notes…', 79);
   const keepDir = findDir(extractedDir, ['Keep']);
-  if (!keepDir) {
-    emit('indexing_keep', 'No Keep folder found, skipping.', 72);
-    return [];
-  }
+  if (!keepDir) { emit('indexing_keep', 'No Keep folder found, skipping.', 80); return []; }
   const notes = parseKeepDir(keepDir);
-  emit('indexing_keep', `Indexed ${notes.length} Keep notes`, 73);
+  emit('indexing_keep', `Indexed ${notes.length.toLocaleString()} Keep notes in ${((Date.now()-start)/1000).toFixed(1)}s`, 81);
   return notes;
 }
 
 function indexTasks(extractedDir) {
-  emit('indexing_tasks', 'Indexing Tasks...', 74);
+  const start = Date.now();
+  emit('indexing_tasks', 'Scanning Tasks…', 82);
   const tasksDir = findDir(extractedDir, ['Tasks']);
-  if (!tasksDir) {
-    emit('indexing_tasks', 'No Tasks folder found, skipping.', 76);
-    return [];
-  }
+  if (!tasksDir) { emit('indexing_tasks', 'No Tasks folder found, skipping.', 83); return []; }
   const icsFiles = walkDir(tasksDir).filter(f => f.endsWith('.ics'));
-  if (icsFiles.length === 0) {
-    emit('indexing_tasks', 'No task files found, skipping.', 76);
-    return [];
-  }
+  if (icsFiles.length === 0) { emit('indexing_tasks', 'No task files found, skipping.', 83); return []; }
   const { parseTaskFiles } = require('./tasksParser');
   const tasks = parseTaskFiles(icsFiles);
-  emit('indexing_tasks', `Indexed ${tasks.length} tasks`, 77);
+  emit('indexing_tasks', `Indexed ${tasks.length.toLocaleString()} tasks in ${((Date.now()-start)/1000).toFixed(1)}s`, 84);
   return tasks;
 }
 
 function indexChrome(extractedDir) {
-  emit('indexing_chrome', 'Indexing Chrome data...', 78);
+  const start = Date.now();
+  emit('indexing_chrome', 'Scanning Chrome data…', 85);
   const chromeDir = findDir(extractedDir, ['Chrome']);
-  if (!chromeDir) {
-    emit('indexing_chrome', 'No Chrome folder found, skipping.', 80);
-    return { bookmarks: [], history: [] };
-  }
-
-  const bookmarksPath = findFile(chromeDir, 'Bookmarks.html')
-    || findFile(chromeDir, 'bookmarks.html');
-  const historyPath = findFile(chromeDir, 'BrowserHistory.json')
-    || findFile(chromeDir, 'browserhistory.json');
-
+  if (!chromeDir) { emit('indexing_chrome', 'No Chrome folder found, skipping.', 86); return { bookmarks: [], history: [] }; }
+  const bookmarksPath = findFile(chromeDir, 'Bookmarks.html') || findFile(chromeDir, 'bookmarks.html');
+  const historyPath = findFile(chromeDir, 'BrowserHistory.json') || findFile(chromeDir, 'browserhistory.json');
   const result = parseChromeFiles(bookmarksPath, historyPath);
-  emit('indexing_chrome', `Indexed ${result.bookmarks.length} bookmarks, ${result.history.length} history entries`, 82);
+  emit('indexing_chrome',
+    `Indexed ${result.bookmarks.length.toLocaleString()} bookmarks + ${result.history.length.toLocaleString()} history in ${((Date.now()-start)/1000).toFixed(1)}s`,
+    87);
   return result;
 }
 
 function indexChat(extractedDir) {
-  emit('indexing_chat', 'Indexing Google Chat...', 83);
+  const start = Date.now();
+  emit('indexing_chat', 'Scanning Google Chat…', 88);
   const chatDir = findDir(extractedDir, ['Google Chat', 'Hangouts']);
-  if (!chatDir) {
-    emit('indexing_chat', 'No Chat folder found, skipping.', 85);
-    return [];
-  }
+  if (!chatDir) { emit('indexing_chat', 'No Chat folder found, skipping.', 89); return []; }
   const conversations = parseChatDir(chatDir);
-  emit('indexing_chat', `Indexed ${conversations.length} conversations`, 86);
+  emit('indexing_chat', `Indexed ${conversations.length.toLocaleString()} conversations in ${((Date.now()-start)/1000).toFixed(1)}s`, 90);
   return conversations;
 }
 
 function indexSaved(extractedDir) {
-  emit('indexing_saved', 'Indexing Saved links...', 87);
+  const start = Date.now();
+  emit('indexing_saved', 'Scanning Saved links…', 91);
   const savedDir = findDir(extractedDir, ['Saved']);
-  if (!savedDir) {
-    emit('indexing_saved', 'No Saved folder found, skipping.', 89);
-    return [];
-  }
+  if (!savedDir) { emit('indexing_saved', 'No Saved folder found, skipping.', 92); return []; }
   const links = parseSavedFiles(savedDir);
-  emit('indexing_saved', `Indexed ${links.length} saved links`, 90);
+  emit('indexing_saved', `Indexed ${links.length.toLocaleString()} saved links in ${((Date.now()-start)/1000).toFixed(1)}s`, 92);
   return links;
 }
 
@@ -332,12 +330,14 @@ async function processFiles(filePaths) {
     : [];
 
   // Write a partial index with emails so they're accessible even if later steps fail
-  emit('indexing_emails', 'Saving email index...', 56);
+  emit('extracting', `Emails done — saving partial index (${emails.length.toLocaleString()} emails)…`, 56);
   db.writeIndex({ indexed: false, indexedAt: new Date().toISOString(), emails,
     driveFiles: [], events: [], contacts: [], keepNotes: [], tasks: [],
     chromeBookmarks: [], chromeHistory: [], chatConversations: [], savedLinks: [] });
 
   // 2. Extract all zips (streaming — no full-file RAM load)
+  const totalZipBytes = zipPaths.reduce((s, p) => s + (fs.existsSync(p) ? fs.statSync(p).size : 0), 0);
+  emit('extracting', `Extracting ${zipPaths.length} zip file(s) — ${fmtBytes(totalZipBytes)} total…`, 57);
   for (const zipPath of zipPaths) {
     checkAbort();
     await extractZip(zipPath, extractedDir);

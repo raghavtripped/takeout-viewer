@@ -178,16 +178,25 @@ cd takeout-viewer
 ### Importing your archive
 
 1. Open the app at [http://localhost:3000](http://localhost:3000)
-2. On the onboarding screen, drag-and-drop your file(s) into the drop zone, or click "Choose File(s)"
-3. You can mix and match:
+2. Drag-and-drop your file(s) into the drop zone, or click "Choose File(s)"
+3. You can mix and match in a single import:
    - **Zip files** — the standard Takeout download format (e.g. `takeout-20240101-001.zip`)
    - **`.mbox` files** — Gmail exports this as a standalone file (e.g. `All mail Including Spam and Trash.mbox`). Select it alongside your zips or on its own
-4. If you have multiple zip parts, select all of them at once
-5. Click **Import**
-6. A progress bar shows what's happening in real time — extraction, then each data type being indexed
-7. When it finishes (5–60 minutes depending on archive size — a 16 GB mbox takes longer), the app opens automatically to your Mail tab
+4. Select all files at once (all zip parts + the mbox), then click **Import**
+5. The progress bar shows live status for every stage — upload speed, emails/sec with ETA, zip extraction progress, and time taken for each data type
+6. A red **✕ Cancel & Clear** button is visible throughout — clicking it immediately stops everything and wipes all partial data so you can start fresh
 
-> **Large mbox files:** Gmail archives can exceed 10 GB as a single `.mbox` file. The app streams it line-by-line so it never loads the full file into RAM, but uploading a 16 GB file over localhost still takes several minutes. The progress bar will update once the upload is received and indexing begins.
+**Typical time breakdown for a large archive (~20 GB total):**
+
+| Stage | What happens | Typical time |
+|---|---|---|
+| Upload | Browser sends files to local server | 5–15 min |
+| Email indexing | Streams the `.mbox` line-by-line, writes one JSON per email | 20–60 min |
+| Zip extraction | Streams each zip entry-by-entry to disk | 5–15 min |
+| Drive / Calendar / Contacts / Keep etc. | Parses extracted files | 1–5 min |
+| **Total** | | **~30–90 min** |
+
+> **Disk space:** Peak usage = size of all uploaded files + extracted size of zips. For a typical full archive (16 GB mbox + 3.5 GB zips), expect ~25 GB peak. After import finishes, the uploads are deleted and usage drops to ~5–8 GB permanently.
 
 To re-import or start fresh, click the 🗑 icon in the top-right corner, which wipes the index and returns you to the import screen.
 
@@ -251,7 +260,7 @@ No database engine, no React, no TypeScript, no build step. The entire stack is:
 |---|---|---|
 | Server | Node.js + Express 4 | Simple, stable, zero config |
 | File uploads | multer | Standard multipart middleware |
-| Zip extraction | adm-zip | Pure JavaScript, no native compilation |
+| Zip extraction | unzipper | Streaming — entries piped directly to disk, no full-file RAM buffer |
 | Storage | JSON files on disk | Universally readable, no native bindings |
 | Progress | Server-Sent Events (SSE) | Built into browsers, simpler than WebSockets |
 | Frontend | Vanilla HTML/CSS/JS | Zero build step, easy to share, easy to read |
@@ -266,11 +275,12 @@ When you upload files, this is the exact sequence:
 1. multer saves all files to data/uploads/
 
 2. indexer.js: separate uploads by type
-   ├── *.zip  → extract each zip entry-by-entry to data/extracted/
-   │            (never loads whole zip into RAM — written to disk immediately)
-   └── *.mbox → used directly (no extraction needed)
+   ├── *.mbox → index emails FIRST (before zip extraction uses disk space)
+   │            streams line-by-line, writes emails/ + partial index.json
+   └── *.zip  → extract via streaming (unzipper) to data/extracted/
+                never loads whole zip into RAM — entries piped directly to disk
 
-3. Walk the entire extracted directory tree + collect any standalone .mbox files
+3. Walk the extracted directory tree for any mbox files inside zips
 
 4. Route files to the right parser:
    ├── *.mbox       → mboxParser     → emails (streamed line-by-line)
@@ -283,14 +293,12 @@ When you upload files, this is the exact sequence:
    ├── Saved/       → savedParser    → links
    └── Google Drive/ → (direct file walk) → drive index
 
-5. Write data/index.json with all metadata arrays
+5. Write final data/index.json with all metadata arrays
 
-6. For each email: write data/emails/{id}.json (full body)
-
-7. Emit SSE "done" event → browser auto-redirects to Mail tab
+6. Emit SSE "done" event → browser auto-redirects to Mail tab
 ```
 
-The SSE progress stream emits `{ stage, message, percent }` objects throughout, which power the progress bar in the browser. The server does not buffer progress events — they are pushed to all connected clients via a `Set` of response objects.
+Every stage emits live progress: email indexing shows `bytes read / total · emails/sec · ~N min left`; zip extraction shows `bytes / size · % · time remaining`; Drive shows file count with ETA; all others show elapsed time on completion. A **✕ Cancel & Clear** button is always visible — it stops the parser at the next boundary, wipes all data, and resets to a clean state immediately.
 
 ### Data storage
 
