@@ -393,4 +393,93 @@ async function processFiles(filePaths) {
   };
 }
 
-module.exports = { processFiles, processZips: processFiles, setProgressCallback, setAbortFlag };
+// ── Local-path import (no upload, no extraction needed) ───────────────────────
+
+async function processLocalPaths(inputPaths) {
+  db.ensureDirs();
+
+  // Classify each path
+  const localMbox = [], localDirs = [], localZips = [];
+  for (const p of inputPaths) {
+    const stat = fs.statSync(p);
+    if (stat.isDirectory()) {
+      localDirs.push(p);
+    } else if (p.toLowerCase().endsWith('.mbox')) {
+      localMbox.push(p);
+    } else if (p.toLowerCase().endsWith('.zip')) {
+      localZips.push(p);
+    }
+  }
+
+  emit('indexing_emails', `Found: ${localDirs.length} folder(s), ${localMbox.length} mbox file(s), ${localZips.length} zip(s)`, 2);
+
+  // Aggregate results across all sources
+  const agg = {
+    emails: [], driveFiles: [], events: [], contacts: [],
+    keepNotes: [], tasks: [], chromeBookmarks: [], chromeHistory: [],
+    chatConversations: [], savedLinks: [],
+  };
+
+  // 1. Standalone mbox files — index emails first
+  if (localMbox.length > 0) {
+    const emails = await indexMboxFiles(localMbox);
+    agg.emails.push(...emails);
+    emit('extracting', `Emails saved (${agg.emails.length.toLocaleString()}) — moving on to folders…`, 56);
+    db.writeIndex({ indexed: false, indexedAt: new Date().toISOString(), ...agg });
+  }
+
+  // 2. Any zip files passed directly — extract them first
+  if (localZips.length > 0) {
+    const extractedDir = db.getExtractedDir();
+    const totalZipBytes = localZips.reduce((s, p) => s + fs.statSync(p).size, 0);
+    emit('extracting', `Extracting ${localZips.length} zip(s) — ${fmtBytes(totalZipBytes)} total…`, 57);
+    for (const zip of localZips) {
+      checkAbort();
+      await extractZip(zip, extractedDir);
+    }
+    localDirs.push(extractedDir);
+  }
+
+  // 3. Index every local directory (already-extracted Takeout folders)
+  const totalDirs = localDirs.length;
+  for (let i = 0; i < localDirs.length; i++) {
+    const dir = localDirs[i];
+    checkAbort();
+    emit('indexing_drive', `Processing folder ${i + 1} / ${totalDirs}: ${path.basename(dir)}…`, 68);
+
+    // Check for mbox files inside this dir too
+    const mboxInDir = walkDir(dir).filter(f => f.toLowerCase().endsWith('.mbox'));
+    if (mboxInDir.length > 0) {
+      const more = await indexMboxFiles(mboxInDir);
+      agg.emails.push(...more);
+    }
+
+    agg.driveFiles.push(...indexDriveFiles(dir));
+    agg.events.push(...indexCalendar(dir));
+    agg.contacts.push(...indexContacts(dir));
+    agg.keepNotes.push(...indexKeep(dir));
+    agg.tasks.push(...indexTasks(dir));
+    const chrome = indexChrome(dir);
+    agg.chromeBookmarks.push(...chrome.bookmarks);
+    agg.chromeHistory.push(...chrome.history);
+    agg.chatConversations.push(...indexChat(dir));
+    agg.savedLinks.push(...indexSaved(dir));
+  }
+
+  // Deduplicate contacts by id
+  agg.contacts = agg.contacts.map((c, i) => ({ ...c, id: `contact-${i}` }));
+
+  emit('done', 'Writing index…', 95);
+  db.writeIndex({ indexed: true, indexedAt: new Date().toISOString(), ...agg });
+  emit('done', 'Import complete!', 100);
+
+  return {
+    emails: agg.emails.length, driveFiles: agg.driveFiles.length,
+    events: agg.events.length, contacts: agg.contacts.length,
+    keepNotes: agg.keepNotes.length, tasks: agg.tasks.length,
+    chromeBookmarks: agg.chromeBookmarks.length, chromeHistory: agg.chromeHistory.length,
+    chatConversations: agg.chatConversations.length, savedLinks: agg.savedLinks.length,
+  };
+}
+
+module.exports = { processFiles, processLocalPaths, processZips: processFiles, setProgressCallback, setAbortFlag };

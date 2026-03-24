@@ -5,7 +5,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const db = require('./db');
-const { processFiles, setProgressCallback, setAbortFlag } = require('./indexer');
+const { processFiles, processLocalPaths, setProgressCallback, setAbortFlag } = require('./indexer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -419,6 +419,50 @@ app.get('/api/saved', (req, res) => {
   const items = links.slice((pageNum - 1) * pageSize, pageNum * pageSize);
 
   res.json({ items, total, page: pageNum, pageSize });
+});
+
+// ── Local path import ─────────────────────────────────────────────────────────
+
+app.post('/api/import/local', async (req, res) => {
+  if (importRunning) return res.status(409).json({ error: 'Import already in progress' });
+
+  const { paths } = req.body;
+  if (!Array.isArray(paths) || paths.length === 0)
+    return res.status(400).json({ error: 'No paths provided' });
+
+  // Validate all paths exist before starting
+  for (const p of paths) {
+    if (!fs.existsSync(p))
+      return res.status(400).json({ error: `Path not found: ${p}` });
+  }
+
+  res.json({ ok: true, paths });
+
+  importRunning = true;
+  setAbortFlag(false);
+  setProgressCallback(broadcastProgress);
+
+  try {
+    const counts = await processLocalPaths(paths);
+    const summary = [
+      counts.emails      && `${counts.emails} emails`,
+      counts.driveFiles  && `${counts.driveFiles} Drive files`,
+      counts.events      && `${counts.events} events`,
+      counts.contacts    && `${counts.contacts} contacts`,
+      counts.keepNotes   && `${counts.keepNotes} Keep notes`,
+      counts.tasks       && `${counts.tasks} tasks`,
+      counts.chromeBookmarks && `${counts.chromeBookmarks} bookmarks`,
+      counts.chromeHistory   && `${counts.chromeHistory} history entries`,
+      counts.chatConversations && `${counts.chatConversations} chat conversations`,
+      counts.savedLinks  && `${counts.savedLinks} saved links`,
+    ].filter(Boolean).join(', ');
+    broadcastProgress({ stage: 'done', message: `Import complete! ${summary}.`, percent: 100, counts });
+  } catch (err) {
+    console.error('[import/local] Error:', err);
+    broadcastProgress({ stage: 'error', message: err.message, percent: 0 });
+  } finally {
+    importRunning = false;
+  }
 });
 
 // ── Abort ─────────────────────────────────────────────────────────────────────

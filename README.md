@@ -177,6 +177,37 @@ cd takeout-viewer
 
 ### Importing your archive
 
+There are two ways to import — choose whichever fits your situation:
+
+---
+
+#### Option A — Local paths (recommended for large archives)
+
+This is the fastest method. You unzip the files yourself using macOS/Windows, then paste the folder path into the app. No upload, no in-app extraction — the app reads directly from disk.
+
+1. Unzip your Takeout zip files using your OS (double-click on macOS, right-click → Extract on Windows)
+2. Open the app at [http://localhost:3000](http://localhost:3000)
+3. In the **"or use local paths"** section at the bottom, paste the full path(s) — one per line:
+   - A folder path — e.g. `/Users/you/Downloads/Takeout`
+   - A `.mbox` file path — e.g. `/Users/you/Downloads/All mail Including Spam and Trash.mbox`
+   - Multiple paths if you have several Takeout parts
+4. Click **Process Local Files**
+5. The progress bar shows live status for every stage
+
+**Typical time breakdown with local paths:**
+
+| Stage | What happens | Typical time |
+|---|---|---|
+| Email indexing | Streams the `.mbox` line-by-line | 20–60 min |
+| Drive / Calendar / Contacts / Keep etc. | Parses files directly from disk | 1–5 min |
+| **Total** | | **~20–65 min** |
+
+> **Disk space:** No extra space needed — files stay where you unzipped them. Only the index (`~5–8 GB`) is written to the app's data folder.
+
+---
+
+#### Option B — Upload (for smaller archives or if you want one-click import)
+
 1. Open the app at [http://localhost:3000](http://localhost:3000)
 2. Drag-and-drop your file(s) into the drop zone, or click "Choose File(s)"
 3. You can mix and match in a single import:
@@ -184,7 +215,6 @@ cd takeout-viewer
    - **`.mbox` files** — Gmail exports this as a standalone file (e.g. `All mail Including Spam and Trash.mbox`). Select it alongside your zips or on its own
 4. Select all files at once (all zip parts + the mbox), then click **Import**
 5. The progress bar shows live status for every stage — upload speed, emails/sec with ETA, zip extraction progress, and time taken for each data type
-6. A red **✕ Cancel & Clear** button is visible throughout — clicking it immediately stops everything and wipes all partial data so you can start fresh
 
 **Typical time breakdown for a large archive (~20 GB total):**
 
@@ -197,6 +227,10 @@ cd takeout-viewer
 | **Total** | | **~30–90 min** |
 
 > **Disk space:** Peak usage = size of all uploaded files + extracted size of zips. For a typical full archive (16 GB mbox + 3.5 GB zips), expect ~25 GB peak. After import finishes, the uploads are deleted and usage drops to ~5–8 GB permanently.
+
+---
+
+A red **✕ Cancel & Clear** button is always visible during import — clicking it immediately stops everything and wipes all partial data so you can start fresh.
 
 To re-import or start fresh, click the 🗑 icon in the top-right corner, which wipes the index and returns you to the import screen.
 
@@ -269,12 +303,30 @@ The decision to use JSON files instead of SQLite was deliberate — SQLite requi
 
 ### The import pipeline
 
-When you upload files, this is the exact sequence:
+There are two import paths:
 
+**Path A — Local paths (no upload)**
+```
+1. User pastes folder/mbox paths in UI → POST /api/import/local
+
+2. indexer.processLocalPaths():
+   ├── classify each path: dir / .mbox / .zip
+   ├── index any .mbox files first (email-first ordering)
+   ├── extract any .zip paths via streaming unzipper
+   └── walk each dir, running all parsers in place
+
+3. Route files to the right parser (same as Path B step 4)
+
+4. Write final data/index.json
+
+5. Emit SSE "done" → browser redirects to Mail tab
+```
+
+**Path B — Upload + extract (browser file picker)**
 ```
 1. multer saves all files to data/uploads/
 
-2. indexer.js: separate uploads by type
+2. indexer.processFiles():
    ├── *.mbox → index emails FIRST (before zip extraction uses disk space)
    │            streams line-by-line, writes emails/ + partial index.json
    └── *.zip  → extract via streaming (unzipper) to data/extracted/

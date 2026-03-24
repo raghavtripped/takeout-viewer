@@ -27,6 +27,18 @@
       <div id="selected-files" class="selected-files hidden"></div>
       <button id="import-btn" class="btn-primary import-btn hidden">Import</button>
 
+      <div class="local-or-divider"><span>or use local paths (faster — skips upload &amp; extraction)</span></div>
+
+      <div class="local-path-section">
+        <p class="local-path-hint">
+          Unzip your Takeout files first, then paste the folder path(s) below — one per line.<br>
+          You can also paste the path to a <code>.mbox</code> file directly.
+        </p>
+        <textarea id="local-paths-input" class="local-paths-input" rows="3"
+          placeholder="/Users/you/Downloads/Takeout&#10;/Users/you/Downloads/All mail Including Spam and Trash.mbox"></textarea>
+        <button id="local-import-btn" class="btn-primary import-btn">Process Local Files</button>
+      </div>
+
       <div id="progress-area" class="progress-area hidden">
         <div class="progress-stage" id="progress-stage">Starting...</div>
         <div class="progress-bar-wrap">

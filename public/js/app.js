@@ -240,6 +240,8 @@ function setupOnboarding() {
     if (selectedFilesList.length === 0) return;
     startImport(selectedFilesList);
   });
+
+  el('local-import-btn').addEventListener('click', startLocalImport);
 }
 
 function formatBytes(bytes) {
@@ -292,6 +294,40 @@ function startImport(files) {
   xhr.send(formData);
 }
 
+function startLocalImport() {
+  const raw = el('local-paths-input').value.trim();
+  const paths = raw.split('\n').map(p => p.trim()).filter(Boolean);
+  if (paths.length === 0) {
+    el('local-paths-input').focus();
+    return;
+  }
+
+  el('local-import-btn').disabled = true;
+  el('progress-area').classList.remove('hidden');
+  el('abort-btn').classList.remove('hidden');
+  el('progress-stage').textContent = 'Starting…';
+  el('progress-message').textContent = 'Validating paths…';
+
+  fetch('/api/import/local', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ paths }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        el('progress-stage').textContent = 'Error: ' + data.error;
+        el('local-import-btn').disabled = false;
+        return;
+      }
+      listenToProgress(null);
+    })
+    .catch(err => {
+      el('progress-stage').textContent = 'Failed: ' + err.message;
+      el('local-import-btn').disabled = false;
+    });
+}
+
 function listenToProgress(activeXhr) {
   const es = new EventSource('/api/import/progress');
 
@@ -306,6 +342,7 @@ function listenToProgress(activeXhr) {
       el('abort-btn').disabled = false;
       el('abort-btn').textContent = '✕ Cancel & Clear';
       el('import-btn').disabled = false;
+      el('local-import-btn').disabled = false;
       el('selected-files').classList.add('hidden');
       el('import-btn').classList.add('hidden');
       el('progress-bar').style.width = '0%';

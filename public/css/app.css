@@ -96,6 +96,25 @@ body {
   margin-bottom: 4px;
 }
 
+.local-or-divider {
+  display: flex; align-items: center; gap: 10px;
+  margin: 22px 0 16px; color: var(--text-secondary); font-size: 13px;
+}
+.local-or-divider::before, .local-or-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+.local-path-section { text-align: left; }
+.local-path-hint { font-size: 13px; color: var(--text-secondary); margin: 0 0 8px; line-height: 1.5; }
+.local-path-hint code { background: var(--hover-bg); padding: 1px 4px; border-radius: 3px; font-size: 12px; }
+.local-paths-input {
+  width: 100%; box-sizing: border-box;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 10px 12px; font-size: 13px; font-family: monospace;
+  color: var(--text-primary); background: var(--bg-primary);
+  resize: vertical; line-height: 1.6;
+}
+.local-paths-input:focus { outline: none; border-color: var(--gmail-blue); }
+
 .progress-area { margin-top: 24px; text-align: left; }
 .progress-stage { font-weight: 500; margin-bottom: 8px; color: var(--text-primary); }
 .progress-bar-wrap {
