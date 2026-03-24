@@ -1,5 +1,40 @@
 'use strict';
 
+function tryFixEncoding(str) {
+  if (!str || !/\xC2[\x80-\xBF]/.test(str)) return str;
+  try {
+    for (let i = 0; i < str.length; i++) {
+      if (str.charCodeAt(i) > 0xFF) return str; // genuine Unicode, not mojibake
+    }
+    const bytes = new Uint8Array(str.length);
+    for (let i = 0; i < str.length; i++) bytes[i] = str.charCodeAt(i) & 0xFF;
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return str;
+  }
+}
+
+function getAttachmentIcon(contentType, filename) {
+  const ext = ((filename || '').split('.').pop() || '').toLowerCase();
+  const ct = contentType || '';
+  if (ct.startsWith('image/')) return '🖼️';
+  if (ct.startsWith('video/')) return '🎬';
+  if (ct.startsWith('audio/')) return '🎵';
+  if (ext === 'pdf' || ct === 'application/pdf') return '📄';
+  if (['doc', 'docx'].includes(ext)) return '📝';
+  if (['xls', 'xlsx', 'csv'].includes(ext)) return '📊';
+  if (['ppt', 'pptx'].includes(ext)) return '📋';
+  if (['zip', 'rar', 'tar', 'gz', '7z'].includes(ext)) return '🗜️';
+  return '📎';
+}
+
+function formatAttSize(bytes) {
+  if (!bytes) return '';
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
+}
+
 const FOLDER_ICONS = {
   Inbox: '📥',
   Sent: '📤',
@@ -164,15 +199,45 @@ function renderEmailDetail(email) {
   const initial = avatarInitial(senderName);
   const color = avatarColor(senderName);
 
+  // Fix encoding on body content (handles mojibake from QP decoding bug)
+  const fixedBodyHtml = tryFixEncoding(email.bodyHtml || '');
+  const fixedBodyText = tryFixEncoding(email.bodyText || '');
+
   let bodyHtml = '';
-  if (email.bodyHtml) {
-    // Render HTML body in sandboxed iframe
-    const encoded = encodeURIComponent(email.bodyHtml);
-    bodyHtml = `<iframe class="email-iframe" srcdoc="${escHtml(email.bodyHtml)}" sandbox="allow-same-origin" style="width:100%;border:none;min-height:400px;margin-top:16px;" onload="this.style.height=this.contentDocument.body.scrollHeight+40+'px'"></iframe>`;
-  } else if (email.bodyText) {
-    bodyHtml = `<pre style="margin-top:16px;white-space:pre-wrap;word-wrap:break-word;font-family:inherit;font-size:14px;line-height:1.6;">${escHtml(email.bodyText)}</pre>`;
+  const htmlToRender = fixedBodyHtml || (/^\s*<!doctype |^\s*<html/i.test(fixedBodyText) ? fixedBodyText : '');
+  if (htmlToRender) {
+    bodyHtml = `<iframe class="email-iframe" srcdoc="${escHtml(htmlToRender)}" sandbox="allow-same-origin" style="width:100%;border:none;min-height:400px;margin-top:16px;" onload="this.style.height=this.contentDocument.body.scrollHeight+40+'px'"></iframe>`;
+  } else if (fixedBodyText) {
+    bodyHtml = `<pre style="margin-top:16px;white-space:pre-wrap;word-wrap:break-word;font-family:inherit;font-size:14px;line-height:1.6;">${escHtml(fixedBodyText)}</pre>`;
   } else {
     bodyHtml = '<p style="color:#5f6368;margin-top:16px;">(No body)</p>';
+  }
+
+  // Attachment chips
+  let attachmentsHtml = '';
+  if (email.attachments && email.attachments.length > 0) {
+    const chips = email.attachments.map(att => {
+      const icon = getAttachmentIcon(att.contentType, att.name);
+      const sizeStr = formatAttSize(att.size);
+      if (att.unavailable) {
+        return `<div class="attachment-chip attachment-chip-unavailable" title="Too large to preview">
+          <span class="att-icon">${icon}</span>
+          <span class="att-name">${escHtml(att.name)}</span>
+          <span class="att-size">${sizeStr}</span>
+        </div>`;
+      }
+      const safeName = att.safeName || att.name.replace(/[^a-zA-Z0-9._\-() ]/g, '_').slice(0, 200);
+      const url = `/api/attachments/${encodeURIComponent(email.id)}/${encodeURIComponent(safeName)}`;
+      return `<a class="attachment-chip" href="${url}" target="_blank" title="${escHtml(att.name)}">
+        <span class="att-icon">${icon}</span>
+        <span class="att-name">${escHtml(att.name)}</span>
+        <span class="att-size">${sizeStr}</span>
+      </a>`;
+    }).join('');
+    attachmentsHtml = `<div class="attachment-bar">
+      <div class="attachment-bar-label">${email.attachments.length} attachment${email.attachments.length !== 1 ? 's' : ''}</div>
+      <div class="attachment-chips">${chips}</div>
+    </div>`;
   }
 
   el('email-detail-content').innerHTML = `
@@ -188,6 +253,7 @@ function renderEmailDetail(email) {
       </div>
       <div class="email-detail-date">${escHtml(formatDate(email.date))}</div>
     </div>
+    ${attachmentsHtml}
     <div class="email-body">${bodyHtml}</div>
   `;
 }

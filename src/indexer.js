@@ -35,31 +35,42 @@ function checkAbort() {
 async function extractZip(zipPath, destDir) {
   const name = path.basename(zipPath);
   const totalBytes = fs.statSync(zipPath).size;
+
+  // Skip 0-byte or suspiciously small zips (corrupt / incomplete download)
+  if (totalBytes < 22) {
+    emit('extracting', `Skipping ${name} — file is empty or corrupt (${totalBytes} bytes)`, 57);
+    return;
+  }
+
   let bytesRead = 0;
   let lastEmit = 0;
   const start = Date.now();
 
   emit('extracting', `Extracting ${name} (${fmtBytes(totalBytes)})…`, 57);
 
-  await new Promise((resolve, reject) => {
-    const src = fs.createReadStream(zipPath);
-    src.on('data', (chunk) => {
-      bytesRead += chunk.length;
-      const now = Date.now();
-      if (now - lastEmit < 1000) return;
-      lastEmit = now;
-      const elapsed = (now - start) / 1000;
-      const rate = bytesRead / elapsed;
-      const remaining = rate > 0 ? (totalBytes - bytesRead) / rate : 0;
-      const pct = totalBytes > 0 ? bytesRead / totalBytes : 0;
-      const msg = `Extracting ${name} · ${fmtBytes(bytesRead)} / ${fmtBytes(totalBytes)} (${(pct * 100).toFixed(1)}%) · ${fmtDuration(remaining)} left`;
-      emit('extracting', msg, 57 + Math.round(pct * 10));
+  try {
+    await new Promise((resolve, reject) => {
+      const src = fs.createReadStream(zipPath);
+      src.on('data', (chunk) => {
+        bytesRead += chunk.length;
+        const now = Date.now();
+        if (now - lastEmit < 1000) return;
+        lastEmit = now;
+        const elapsed = (now - start) / 1000;
+        const rate = bytesRead / elapsed;
+        const remaining = rate > 0 ? (totalBytes - bytesRead) / rate : 0;
+        const pct = totalBytes > 0 ? bytesRead / totalBytes : 0;
+        const msg = `Extracting ${name} · ${fmtBytes(bytesRead)} / ${fmtBytes(totalBytes)} (${(pct * 100).toFixed(1)}%) · ${fmtDuration(remaining)} left`;
+        emit('extracting', msg, 57 + Math.round(pct * 10));
+      });
+      src.pipe(unzipper.Extract({ path: destDir }))
+        .on('finish', resolve)
+        .on('error', reject);
+      src.on('error', reject);
     });
-    src.pipe(unzipper.Extract({ path: destDir }))
-      .on('finish', resolve)
-      .on('error', reject);
-    src.on('error', reject);
-  });
+  } catch (err) {
+    throw new Error(`Failed to extract ${name}: ${err.message}. If this zip is corrupt or a partial download, skip it and try the others.`);
+  }
 
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
   emit('extracting', `Done extracting ${name} in ${elapsed}s`, 67);
@@ -147,8 +158,38 @@ async function indexMboxFiles(mboxFiles) {
 
     const count = await parseMbox(mboxPath, async (metadata, fullEmail) => {
       checkAbort();
-      db.writeEmail(metadata.id, fullEmail);
-      emails.push(metadata);
+
+      let savedAtts = [];
+      if (fullEmail.rawAttachments && fullEmail.rawAttachments.length > 0) {
+        const attDir = path.join(db.DATA_DIR, 'attachments', metadata.id);
+        fs.mkdirSync(attDir, { recursive: true });
+        for (const att of fullEmail.rawAttachments) {
+          if (att.unavailable) {
+            savedAtts.push({ name: att.name, contentType: att.contentType, size: att.size, unavailable: true });
+            continue;
+          }
+          if (att.data && att.data.length > 0) {
+            const safeName = att.name.replace(/[^a-zA-Z0-9._\-() ]/g, '_').slice(0, 200);
+            try {
+              fs.writeFileSync(path.join(attDir, safeName), att.data);
+              savedAtts.push({ name: att.name, safeName, contentType: att.contentType, size: att.size });
+            } catch {}
+          }
+        }
+      }
+
+      const emailData = { ...fullEmail };
+      delete emailData.rawAttachments;
+      if (savedAtts.length > 0) emailData.attachments = savedAtts;
+
+      const metaToSave = { ...metadata };
+      if (savedAtts.length > 0) {
+        metaToSave.hasAttachment = true;
+        metaToSave.attachments = savedAtts;
+      }
+
+      db.writeEmail(metaToSave.id, emailData);
+      emails.push(metaToSave);
       totalProcessed++;
     }, (bytesRead, totalBytes) => {
       // Throttle progress emits to once per second

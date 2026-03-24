@@ -811,3 +811,67 @@ body {
   flex: 1;
   padding: 16px;
 }
+
+/* ── Attachment bar ─────────────────────────────────────────────────────────── */
+.attachment-bar {
+  margin: 12px 0 0;
+  padding: 12px 0;
+  border-top: 1px solid #e0e0e0;
+}
+
+.attachment-bar-label {
+  font-size: 12px;
+  color: #5f6368;
+  margin-bottom: 8px;
+}
+
+.attachment-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  text-decoration: none;
+  color: #202124;
+  font-size: 13px;
+  background: #fff;
+  max-width: 240px;
+  overflow: hidden;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.attachment-chip:hover {
+  background: #f1f3f4;
+  border-color: #bdc1c6;
+}
+
+.attachment-chip-unavailable {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.att-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.att-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.att-size {
+  color: #5f6368;
+  font-size: 11px;
+  flex-shrink: 0;
+}

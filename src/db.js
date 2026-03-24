@@ -15,6 +15,11 @@ function ensureDirs() {
   fs.mkdirSync(EMAILS_DIR, { recursive: true });
   fs.mkdirSync(path.join(DATA_DIR, 'uploads'), { recursive: true });
   fs.mkdirSync(path.join(DATA_DIR, 'extracted'), { recursive: true });
+  fs.mkdirSync(path.join(DATA_DIR, 'attachments'), { recursive: true });
+}
+
+function getAttachmentsDir() {
+  return path.join(DATA_DIR, 'attachments');
 }
 
 function readIndex() {
@@ -87,6 +92,7 @@ module.exports = {
   reset,
   getExtractedDir,
   getUploadsDir,
+  getAttachmentsDir,
   DATA_DIR,
   INDEX_PATH,
 };

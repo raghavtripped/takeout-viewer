@@ -11,11 +11,20 @@ function decodeEncodedWords(str) {
       if (encoding.toUpperCase() === 'B') {
         return Buffer.from(text, 'base64').toString('utf8');
       } else {
-        // Quoted-printable: replace _ with space, then decode =XX
-        const qp = text.replace(/_/g, ' ').replace(/=([0-9A-Fa-f]{2})/g, (m, h) =>
-          String.fromCharCode(parseInt(h, 16))
-        );
-        return qp;
+        // Quoted-printable: replace _ with space, then decode =XX as UTF-8 bytes
+        const qpText = text.replace(/_/g, ' ');
+        const bytes = [];
+        let i = 0;
+        while (i < qpText.length) {
+          if (qpText[i] === '=' && i + 2 < qpText.length) {
+            bytes.push(parseInt(qpText.slice(i + 1, i + 3), 16));
+            i += 3;
+          } else {
+            bytes.push(qpText.charCodeAt(i));
+            i++;
+          }
+        }
+        return Buffer.from(bytes).toString('utf8');
       }
     } catch {
       return text;
@@ -40,7 +49,36 @@ function parseHeaderValue(lines) {
   return lines.join(' ').replace(/\s+/g, ' ').trim();
 }
 
-// Decode MIME base64/QP body parts
+// Decode MIME content to a Buffer (handles base64 and quoted-printable)
+function decodePartToBuffer(content, encoding) {
+  const enc = (encoding || '').toLowerCase().trim();
+  if (enc === 'base64') {
+    try {
+      return Buffer.from(content.replace(/\s/g, ''), 'base64');
+    } catch {
+      return Buffer.from(content);
+    }
+  }
+  if (enc === 'quoted-printable') {
+    const stripped = content.replace(/=\r?\n/g, '');
+    const bytes = [];
+    let i = 0;
+    while (i < stripped.length) {
+      if (stripped[i] === '=' && i + 2 < stripped.length) {
+        bytes.push(parseInt(stripped.slice(i + 1, i + 3), 16));
+        i += 3;
+      } else {
+        bytes.push(stripped.charCodeAt(i));
+        i++;
+      }
+    }
+    return Buffer.from(bytes);
+  }
+  // identity / 7bit / 8bit — return as UTF-8 buffer
+  return Buffer.from(content);
+}
+
+// Decode MIME base64/QP body parts to a string
 function decodePart(content, encoding) {
   if (!encoding) return content;
   const enc = encoding.toLowerCase().trim();
@@ -50,21 +88,60 @@ function decodePart(content, encoding) {
     } catch { return content; }
   }
   if (enc === 'quoted-printable') {
-    return content
-      .replace(/=\r?\n/g, '')
-      .replace(/=([0-9A-Fa-f]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+    return decodePartToBuffer(content, encoding).toString('utf8');
   }
   return content;
 }
 
-// Recursive MIME part extractor — returns { textPlain, textHtml }
-function extractParts(rawBody, boundary) {
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024; // 25 MB
+
+// Parse folded headers from a header block string
+function parseFoldedHeaders(headerBlock) {
+  const headers = {};
+  let currentKey = null;
+  let currentVal = [];
+
+  for (const line of headerBlock.split('\n')) {
+    if (/^[\t ]/.test(line) && currentKey) {
+      currentVal.push(line.trim());
+    } else {
+      if (currentKey) {
+        headers[currentKey] = parseHeaderValue(currentVal);
+      }
+      const m = line.match(/^([\w-]+):\s*(.*)/i);
+      if (m) {
+        currentKey = m[1].toLowerCase();
+        currentVal = [m[2]];
+      } else {
+        currentKey = null;
+        currentVal = [];
+      }
+    }
+  }
+  if (currentKey) {
+    headers[currentKey] = parseHeaderValue(currentVal);
+  }
+  return headers;
+}
+
+// Recursive MIME part extractor — returns { textPlain, textHtml, attachments }
+// outerCt: Content-Type of the whole message (for single-part emails)
+// outerCe: Content-Transfer-Encoding of the whole message
+function extractParts(rawBody, boundary, outerCt, outerCe) {
   let textPlain = '';
   let textHtml = '';
+  const attachments = [];
 
   if (!boundary) {
-    // Single part — try to detect type from raw content
-    return { textPlain: rawBody.trim(), textHtml: '' };
+    // Single part — decode and route based on outerCt
+    const ct = (outerCt || 'text/plain').toLowerCase();
+    const decoded = decodePart(rawBody, outerCe);
+    if (ct.startsWith('text/html')) {
+      textHtml = decoded;
+    } else {
+      textPlain = decoded;
+    }
+    return { textPlain, textHtml, attachments };
   }
 
   const delimRe = new RegExp('--' + boundary.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
@@ -79,14 +156,12 @@ function extractParts(rawBody, boundary) {
     const headerBlock = part.slice(0, sepIdx);
     const body = part.slice(sepIdx + 2);
 
-    const headers = {};
-    for (const line of headerBlock.split('\n')) {
-      const m = line.match(/^([\w-]+):\s*(.+)/i);
-      if (m) headers[m[1].toLowerCase()] = m[2].trim();
-    }
+    // Use folded header parser for part headers
+    const headers = parseFoldedHeaders(headerBlock);
 
     const ct = headers['content-type'] || '';
     const ce = headers['content-transfer-encoding'] || '';
+    const cd = headers['content-disposition'] || '';
 
     // Check for nested multipart
     const subBoundaryMatch = ct.match(/boundary="?([^";\s]+)"?/i);
@@ -94,6 +169,33 @@ function extractParts(rawBody, boundary) {
       const sub = extractParts(body, subBoundaryMatch[1]);
       if (!textPlain && sub.textPlain) textPlain = sub.textPlain;
       if (!textHtml && sub.textHtml) textHtml = sub.textHtml;
+      attachments.push(...sub.attachments);
+      continue;
+    }
+
+    // Determine if this is an attachment
+    const isAttachmentDisposition = /^\s*attachment/i.test(cd);
+    const filenameMatch =
+      cd.match(/filename\*?=(?:"([^"]+)"|([^;\s]+))/i) ||
+      ct.match(/name\*?=(?:"([^"]+)"|([^;\s]+))/i);
+    const filename = filenameMatch ? (filenameMatch[1] || filenameMatch[2] || '').trim() : null;
+
+    const isInlineText =
+      (ct.startsWith('text/plain') || ct.startsWith('text/html')) &&
+      !isAttachmentDisposition &&
+      !filename;
+
+    if (isAttachmentDisposition || (filename && !isInlineText)) {
+      // This is an attachment
+      const attName = filename || 'attachment';
+      const attCt = ct.split(';')[0].trim() || 'application/octet-stream';
+      const rawSize = body.length;
+      if (rawSize > MAX_ATTACHMENT_BYTES) {
+        attachments.push({ name: attName, contentType: attCt, size: rawSize, data: null, unavailable: true });
+      } else {
+        const data = decodePartToBuffer(body, ce);
+        attachments.push({ name: attName, contentType: attCt, size: data.length, data });
+      }
       continue;
     }
 
@@ -105,7 +207,7 @@ function extractParts(rawBody, boundary) {
     }
   }
 
-  return { textPlain, textHtml };
+  return { textPlain, textHtml, attachments };
 }
 
 function stripHtmlTags(html) {
@@ -212,30 +314,7 @@ async function processMessage(raw, index, onEmail) {
   const rawBody = raw.slice(sepIdx + 2);
 
   // Parse headers — handle folding (continuation lines start with whitespace)
-  const headers = {};
-  let currentKey = null;
-  let currentVal = [];
-
-  for (const line of headerBlock.split('\n')) {
-    if (/^[\t ]/.test(line) && currentKey) {
-      currentVal.push(line.trim());
-    } else {
-      if (currentKey) {
-        headers[currentKey] = parseHeaderValue(currentVal);
-      }
-      const m = line.match(/^([\w-]+):\s*(.*)/i);
-      if (m) {
-        currentKey = m[1].toLowerCase();
-        currentVal = [m[2]];
-      } else {
-        currentKey = null;
-        currentVal = [];
-      }
-    }
-  }
-  if (currentKey) {
-    headers[currentKey] = parseHeaderValue(currentVal);
-  }
+  const headers = parseFoldedHeaders(headerBlock);
 
   const subject = decodeEncodedWords(headers['subject'] || '(no subject)');
   const from = decodeEncodedWords(headers['from'] || '');
@@ -244,6 +323,7 @@ async function processMessage(raw, index, onEmail) {
   const labels = headers['x-gmail-labels'] || '';
   const messageId = headers['message-id'] || `msg-${index}`;
   const ct = headers['content-type'] || 'text/plain';
+  const ce = headers['content-transfer-encoding'] || '';
 
   const dateObj = parseDate(dateRaw);
   const timestamp = dateObj ? dateObj.getTime() : 0;
@@ -253,14 +333,14 @@ async function processMessage(raw, index, onEmail) {
   const boundaryMatch = ct.match(/boundary="?([^";\s]+)"?/i);
   const boundary = boundaryMatch ? boundaryMatch[1] : null;
 
-  const { textPlain, textHtml } = extractParts(rawBody, boundary);
+  const { textPlain, textHtml, attachments: rawAttachments } = extractParts(rawBody, boundary, ct, ce);
 
   // Prefer plain text for snippet; fall back to stripping HTML
   const snippetSource = textPlain || stripHtmlTags(textHtml);
   const snippet = snippetSource.replace(/\s+/g, ' ').trim().slice(0, 200);
 
-  // Detect attachments: look for Content-Disposition: attachment in raw
-  const hasAttachment = /content-disposition:\s*attachment/i.test(raw);
+  // Detect attachments: look for Content-Disposition: attachment in raw, or from extracted parts
+  const hasAttachment = /content-disposition:\s*attachment/i.test(raw) || rawAttachments.length > 0;
 
   // Parse label list
   const labelList = labels
@@ -290,6 +370,7 @@ async function processMessage(raw, index, onEmail) {
     ...metadata,
     bodyText: textPlain,
     bodyHtml: textHtml,
+    rawAttachments,
   };
 
   await onEmail(metadata, fullEmail);

@@ -486,6 +486,17 @@ app.post('/api/reset', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Serve attachments ───────────────────────────────────────────────────────
+app.get('/api/attachments/:emailId/:filename', (req, res) => {
+  const { emailId, filename } = req.params;
+  if (!/^email-\d+-\d+$/.test(emailId) || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+    return res.status(400).json({ error: 'Invalid parameters' });
+  }
+  const attPath = path.join(db.DATA_DIR, 'attachments', emailId, filename);
+  if (!fs.existsSync(attPath)) return res.status(404).send('Not found');
+  res.sendFile(attPath);
+});
+
 // ── Global error handler (must be after all routes) ───────────────────────────
 
 // eslint-disable-next-line no-unused-vars
