@@ -15,6 +15,16 @@ app.use(express.json());
 
 db.ensureDirs();
 
+// Clean up any orphaned upload files left over from a previous crashed/killed session
+(function cleanStaleUploads() {
+  const uploadsDir = db.getUploadsDir();
+  try {
+    for (const f of fs.readdirSync(uploadsDir)) {
+      try { fs.unlinkSync(path.join(uploadsDir, f)); } catch {}
+    }
+  } catch {}
+})();
+
 // ── Upload ────────────────────────────────────────────────────────────────────
 
 const storage = multer.diskStorage({
