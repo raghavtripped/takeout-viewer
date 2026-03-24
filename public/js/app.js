@@ -242,22 +242,53 @@ function setupOnboarding() {
   });
 }
 
+function formatBytes(bytes) {
+  if (bytes >= 1e9) return (bytes / 1e9).toFixed(1) + ' GB';
+  if (bytes >= 1e6) return (bytes / 1e6).toFixed(0) + ' MB';
+  return (bytes / 1e3).toFixed(0) + ' KB';
+}
+
 function startImport(files) {
   const formData = new FormData();
-  for (const f of files) formData.append('files', f);
+  let totalBytes = 0;
+  for (const f of files) { formData.append('files', f); totalBytes += f.size; }
 
   el('import-btn').disabled = true;
   el('progress-area').classList.remove('hidden');
   el('progress-stage').textContent = 'Uploading...';
-  el('progress-message').textContent = '';
+  el('progress-message').textContent = `Sending ${formatBytes(totalBytes)} to local server…`;
 
-  fetch('/api/import', { method: 'POST', body: formData })
-    .then(r => r.json())
-    .then(data => {
-      if (data.error) { el('progress-stage').textContent = 'Error: ' + data.error; return; }
-      listenToProgress();
-    })
-    .catch(err => { el('progress-stage').textContent = 'Upload failed: ' + err.message; });
+  const xhr = new XMLHttpRequest();
+  let uploadStart = Date.now();
+
+  xhr.upload.addEventListener('progress', (e) => {
+    if (!e.lengthComputable) return;
+    const pct = Math.round((e.loaded / e.total) * 100);
+    el('progress-bar').style.width = pct + '%';
+    const elapsed = (Date.now() - uploadStart) / 1000;
+    const rate = e.loaded / elapsed; // bytes/sec
+    const remaining = rate > 0 ? (e.total - e.loaded) / rate : 0;
+    const eta = remaining > 60
+      ? Math.ceil(remaining / 60) + ' min remaining'
+      : Math.ceil(remaining) + ' sec remaining';
+    el('progress-message').textContent =
+      `Uploading: ${formatBytes(e.loaded)} / ${formatBytes(e.total)} (${pct}%) — ${eta}`;
+  });
+
+  xhr.addEventListener('load', () => {
+    let data;
+    try { data = JSON.parse(xhr.responseText); } catch { data = { error: 'Invalid server response' }; }
+    if (data.error) { el('progress-stage').textContent = 'Error: ' + data.error; return; }
+    el('progress-bar').style.width = '0%';
+    listenToProgress();
+  });
+
+  xhr.addEventListener('error', () => {
+    el('progress-stage').textContent = 'Upload failed — check that the server is still running';
+  });
+
+  xhr.open('POST', '/api/import');
+  xhr.send(formData);
 }
 
 function listenToProgress() {

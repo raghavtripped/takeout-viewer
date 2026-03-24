@@ -45,7 +45,7 @@ app.get('/api/import/progress', (req, res) => {
 
 let importRunning = false;
 
-app.post('/api/import', upload.array('files'), async (req, res) => {
+app.post('/api/import', (req, res, next) => upload.array('files')(req, res, next), async (req, res) => {
   if (importRunning) return res.status(409).json({ error: 'Import already in progress' });
   if (!req.files || req.files.length === 0) return res.status(400).json({ error: 'No files uploaded' });
 
@@ -418,6 +418,14 @@ app.post('/api/reset', (req, res) => {
   db.reset();
   db.ensureDirs();
   res.json({ ok: true });
+});
+
+// ── Global error handler (must be after all routes) ───────────────────────────
+
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  console.error('[server] Unhandled error:', err.message);
+  res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
 });
 
 // ── Start (with port fallback) ────────────────────────────────────────────────
