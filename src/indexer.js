@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const AdmZip = require('adm-zip');
+const unzipper = require('unzipper');
 const db = require('./db');
 const { parseMbox } = require('./mboxParser');
 const { parseIcsFile } = require('./icsParser');
@@ -25,26 +25,31 @@ function emit(stage, message, percent) {
 }
 
 /**
- * Extract a single zip to the extracted dir.
+ * Extract a single zip to the extracted dir using streaming (no full-file RAM load).
  */
-function extractZip(zipPath, destDir) {
+async function extractZip(zipPath, destDir) {
   emit('extracting', `Extracting ${path.basename(zipPath)}...`, 0);
-  const zip = new AdmZip(zipPath);
-  const entries = zip.getEntries();
-  const total = entries.length;
+  let count = 0;
 
-  entries.forEach((entry, i) => {
-    if (!entry.isDirectory) {
-      const entryPath = path.join(destDir, entry.entryName);
-      fs.mkdirSync(path.dirname(entryPath), { recursive: true });
-      fs.writeFileSync(entryPath, entry.getData());
-    }
-    if (i % 50 === 0) {
-      emit('extracting', `Extracting ${path.basename(zipPath)}: ${i}/${total} files`, Math.round((i / total) * 20));
-    }
-  });
+  await fs.createReadStream(zipPath)
+    .pipe(unzipper.Parse({ forceStream: true }))
+    .on('entry', (entry) => {
+      const entryPath = path.join(destDir, entry.path);
+      if (entry.type === 'Directory') {
+        fs.mkdirSync(entryPath, { recursive: true });
+        entry.autodrain();
+      } else {
+        fs.mkdirSync(path.dirname(entryPath), { recursive: true });
+        entry.pipe(fs.createWriteStream(entryPath));
+        count++;
+        if (count % 50 === 0) {
+          emit('extracting', `Extracting ${path.basename(zipPath)}: ${count} files…`, 10);
+        }
+      }
+    })
+    .promise();
 
-  emit('extracting', `Done extracting ${path.basename(zipPath)}`, 20);
+  emit('extracting', `Done extracting ${path.basename(zipPath)} (${count} files)`, 20);
 }
 
 /**
@@ -276,21 +281,33 @@ async function processFiles(filePaths) {
   const zipPaths = filePaths.filter(p => p.toLowerCase().endsWith('.zip'));
   const standaloneMbox = filePaths.filter(p => p.toLowerCase().endsWith('.mbox'));
 
-  // 1. Extract all zips
-  for (const zipPath of zipPaths) {
-    extractZip(zipPath, extractedDir);
-  }
-
-  // 2. Find mbox files: from extracted zips + any directly uploaded .mbox files
-  emit('indexing_emails', 'Finding mbox files...', 22);
-  const allFiles = walkDir(extractedDir);
-  const mboxFiles = [...allFiles.filter(f => f.toLowerCase().endsWith('.mbox')), ...standaloneMbox];
-
-  // 3. Index all sections
-  const emails = mboxFiles.length > 0
-    ? await indexMboxFiles(mboxFiles)
+  // 1. Index standalone mbox files FIRST — before zip extraction uses disk space.
+  //    This way emails are saved even if zip extraction later fails.
+  emit('indexing_emails', 'Finding mbox files...', 5);
+  const emails = standaloneMbox.length > 0
+    ? await indexMboxFiles(standaloneMbox)
     : [];
 
+  // Write a partial index with emails so they're accessible even if later steps fail
+  emit('indexing_emails', 'Saving email index...', 56);
+  db.writeIndex({ indexed: false, indexedAt: new Date().toISOString(), emails,
+    driveFiles: [], events: [], contacts: [], keepNotes: [], tasks: [],
+    chromeBookmarks: [], chromeHistory: [], chatConversations: [], savedLinks: [] });
+
+  // 2. Extract all zips (streaming — no full-file RAM load)
+  for (const zipPath of zipPaths) {
+    await extractZip(zipPath, extractedDir);
+  }
+
+  // 3. Also pick up any mbox files that were inside the zips
+  const extractedMbox = walkDir(extractedDir).filter(f => f.toLowerCase().endsWith('.mbox'));
+  if (extractedMbox.length > 0) {
+    emit('indexing_emails', `Found ${extractedMbox.length} more mbox file(s) in zips...`, 57);
+    const moreEmails = await indexMboxFiles(extractedMbox);
+    emails.push(...moreEmails);
+  }
+
+  // 4. Index everything else from the extracted zips
   const driveFiles = indexDriveFiles(extractedDir);
   const events = indexCalendar(extractedDir);
   const contacts = indexContacts(extractedDir);
@@ -300,9 +317,9 @@ async function processFiles(filePaths) {
   const chatConversations = indexChat(extractedDir);
   const savedLinks = indexSaved(extractedDir);
 
-  // 4. Write index
+  // 5. Write final index
   emit('done', 'Writing index...', 95);
-  const index = {
+  db.writeIndex({
     indexed: true,
     indexedAt: new Date().toISOString(),
     emails,
@@ -315,9 +332,7 @@ async function processFiles(filePaths) {
     chromeHistory,
     chatConversations,
     savedLinks,
-  };
-
-  db.writeIndex(index);
+  });
   emit('done', 'Import complete!', 100);
 
   return {
