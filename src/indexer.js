@@ -15,13 +15,17 @@ const { parseSavedFiles } = require('./savedParser');
 
 // Global progress emitter — set by server.js
 let progressCallback = null;
+let abortFlag = false;
 
-function setProgressCallback(cb) {
-  progressCallback = cb;
-}
+function setProgressCallback(cb) { progressCallback = cb; }
+function setAbortFlag(val) { abortFlag = val; }
 
 function emit(stage, message, percent) {
   if (progressCallback) progressCallback({ stage, message, percent });
+}
+
+function checkAbort() {
+  if (abortFlag) throw new Error('Import aborted by user');
 }
 
 /**
@@ -112,8 +116,10 @@ async function indexMboxFiles(mboxFiles) {
   let totalProcessed = 0;
 
   for (const mboxPath of mboxFiles) {
+    checkAbort();
     emit('indexing_emails', `Parsing ${path.basename(mboxPath)}...`, 25);
     const count = await parseMbox(mboxPath, async (metadata, fullEmail) => {
+      checkAbort();
       db.writeEmail(metadata.id, fullEmail);
       emails.push(metadata);
       totalProcessed++;
@@ -296,6 +302,7 @@ async function processFiles(filePaths) {
 
   // 2. Extract all zips (streaming — no full-file RAM load)
   for (const zipPath of zipPaths) {
+    checkAbort();
     await extractZip(zipPath, extractedDir);
   }
 
@@ -349,4 +356,4 @@ async function processFiles(filePaths) {
   };
 }
 
-module.exports = { processFiles, processZips: processFiles, setProgressCallback };
+module.exports = { processFiles, processZips: processFiles, setProgressCallback, setAbortFlag };

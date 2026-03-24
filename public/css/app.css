@@ -113,6 +113,18 @@ body {
   transition: width .3s ease;
 }
 .progress-message { color: var(--text-secondary); font-size: 13px; }
+.btn-abort {
+  margin-top: 14px;
+  padding: 7px 18px;
+  font-size: 13px;
+  background: none;
+  border: 1px solid #d93025;
+  color: #d93025;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.btn-abort:hover { background: #fce8e6; }
 
 /* ── Header ──────────────────────────────────────────────────────────────── */
 .header {

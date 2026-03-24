@@ -5,7 +5,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const db = require('./db');
-const { processFiles, setProgressCallback } = require('./indexer');
+const { processFiles, setProgressCallback, setAbortFlag } = require('./indexer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -419,6 +419,18 @@ app.get('/api/saved', (req, res) => {
   const items = links.slice((pageNum - 1) * pageSize, pageNum * pageSize);
 
   res.json({ items, total, page: pageNum, pageSize });
+});
+
+// ── Abort ─────────────────────────────────────────────────────────────────────
+
+app.post('/api/abort', (req, res) => {
+  setAbortFlag(true);                      // signal the indexer to stop
+  importRunning = false;                   // unblock future imports immediately
+  broadcastProgress({ stage: 'aborted', message: 'Import cancelled.', percent: 0 });
+  db.reset();                              // wipe all data dirs
+  db.ensureDirs();                         // recreate clean empty dirs
+  setAbortFlag(false);                     // ready for next import
+  res.json({ ok: true });
 });
 
 // ── Reset ─────────────────────────────────────────────────────────────────────

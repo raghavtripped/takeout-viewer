@@ -255,6 +255,7 @@ function startImport(files) {
 
   el('import-btn').disabled = true;
   el('progress-area').classList.remove('hidden');
+  el('abort-btn').classList.remove('hidden');
   el('progress-stage').textContent = 'Uploading...';
   el('progress-message').textContent = `Sending ${formatBytes(totalBytes)} to local server…`;
 
@@ -280,7 +281,7 @@ function startImport(files) {
     try { data = JSON.parse(xhr.responseText); } catch { data = { error: 'Invalid server response' }; }
     if (data.error) { el('progress-stage').textContent = 'Error: ' + data.error; return; }
     el('progress-bar').style.width = '0%';
-    listenToProgress();
+    listenToProgress(xhr);
   });
 
   xhr.addEventListener('error', () => {
@@ -291,8 +292,28 @@ function startImport(files) {
   xhr.send(formData);
 }
 
-function listenToProgress() {
+function listenToProgress(activeXhr) {
   const es = new EventSource('/api/import/progress');
+
+  function abortImport() {
+    el('abort-btn').disabled = true;
+    el('abort-btn').textContent = 'Cancelling…';
+    if (activeXhr) activeXhr.abort();    // kill upload if still in flight
+    es.close();
+    fetch('/api/abort', { method: 'POST' }).then(() => {
+      el('progress-area').classList.add('hidden');
+      el('abort-btn').classList.add('hidden');
+      el('abort-btn').disabled = false;
+      el('abort-btn').textContent = '✕ Cancel & Clear';
+      el('import-btn').disabled = false;
+      el('selected-files').classList.add('hidden');
+      el('import-btn').classList.add('hidden');
+      el('progress-bar').style.width = '0%';
+    });
+  }
+
+  el('abort-btn').onclick = abortImport;
+
   es.onmessage = (e) => {
     const event = JSON.parse(e.data);
     el('progress-bar').style.width = event.percent + '%';
@@ -311,16 +332,22 @@ function listenToProgress() {
       indexing_saved: 'Indexing Saved links...',
       done: 'Done!',
       error: 'Error',
+      aborted: 'Cancelled',
     };
     el('progress-stage').textContent = stageNames[event.stage] || event.stage;
 
     if (event.stage === 'done') {
       es.close();
+      el('abort-btn').classList.add('hidden');
       setTimeout(() => showApp(event.counts), 800);
     }
     if (event.stage === 'error') {
       es.close();
+      el('abort-btn').classList.add('hidden');
       el('import-btn').disabled = false;
+    }
+    if (event.stage === 'aborted') {
+      es.close();
     }
   };
   es.onerror = () => { es.close(); };

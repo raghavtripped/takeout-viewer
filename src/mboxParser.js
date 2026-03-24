@@ -167,6 +167,7 @@ async function parseMbox(filePath, onEmail) {
         try {
           await processMessage(raw, count, onEmail);
         } catch (e) {
+          if (e.message === 'Import aborted by user') throw e; // propagate abort
           // Don't abort whole parse for one bad message
           console.error(`[mbox] Error processing message ${count}:`, e.message);
         }
