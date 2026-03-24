@@ -173,16 +173,21 @@ cd takeout-viewer
 3. Choose export format (leave defaults — the app handles all the formats Google uses)
 4. Choose delivery method — "Send download link via email" is easiest
 5. Wait for the email (can take minutes to hours depending on archive size)
-6. Download the zip file(s). Large archives are split into multiple parts like `takeout-20240101-001.zip`, `002.zip`, etc.
+6. Download all the files. Large archives are split into multiple zip parts like `takeout-20240101-001.zip`, `002.zip`, etc. Gmail mail is exported as a separate `.mbox` file — download that too.
 
 ### Importing your archive
 
 1. Open the app at [http://localhost:3000](http://localhost:3000)
-2. On the onboarding screen, drag-and-drop your zip file(s) into the drop zone, or click "Choose File(s)"
-3. If you have multiple zip parts, select all of them at once
-4. Click **Import**
-5. A progress bar shows what's happening in real time — extraction, then each data type being indexed
-6. When it finishes (5–20 minutes for large archives), the app opens automatically to your Mail tab
+2. On the onboarding screen, drag-and-drop your file(s) into the drop zone, or click "Choose File(s)"
+3. You can mix and match:
+   - **Zip files** — the standard Takeout download format (e.g. `takeout-20240101-001.zip`)
+   - **`.mbox` files** — Gmail exports this as a standalone file (e.g. `All mail Including Spam and Trash.mbox`). Select it alongside your zips or on its own
+4. If you have multiple zip parts, select all of them at once
+5. Click **Import**
+6. A progress bar shows what's happening in real time — extraction, then each data type being indexed
+7. When it finishes (5–60 minutes depending on archive size — a 16 GB mbox takes longer), the app opens automatically to your Mail tab
+
+> **Large mbox files:** Gmail archives can exceed 10 GB as a single `.mbox` file. The app streams it line-by-line so it never loads the full file into RAM, but uploading a 16 GB file over localhost still takes several minutes. The progress bar will update once the upload is received and indexing begins.
 
 To re-import or start fresh, click the 🗑 icon in the top-right corner, which wipes the index and returns you to the import screen.
 
@@ -255,18 +260,20 @@ The decision to use JSON files instead of SQLite was deliberate — SQLite requi
 
 ### The import pipeline
 
-When you upload a zip, this is the exact sequence:
+When you upload files, this is the exact sequence:
 
 ```
-1. multer saves zip(s) to data/uploads/
+1. multer saves all files to data/uploads/
 
-2. indexer.js: extract each zip entry-by-entry to data/extracted/
-   (never loads whole zip into RAM — written to disk immediately)
+2. indexer.js: separate uploads by type
+   ├── *.zip  → extract each zip entry-by-entry to data/extracted/
+   │            (never loads whole zip into RAM — written to disk immediately)
+   └── *.mbox → used directly (no extraction needed)
 
-3. Walk the entire extracted directory tree
+3. Walk the entire extracted directory tree + collect any standalone .mbox files
 
 4. Route files to the right parser:
-   ├── *.mbox       → mboxParser     → emails
+   ├── *.mbox       → mboxParser     → emails (streamed line-by-line)
    ├── Keep/*.json  → keepParser     → notes
    ├── Tasks/*.ics  → tasksParser    → VTODO blocks
    ├── *.ics        → icsParser      → VEVENT blocks (calendar)
@@ -397,7 +404,7 @@ Reuses the Netscape bookmark HTML parser from `chromeParser.js`. Google's Saved 
 
 | Method | Route | What it does |
 |---|---|---|
-| `POST` | `/api/import` | Accepts zip upload, starts background indexing |
+| `POST` | `/api/import` | Accepts zip and/or .mbox uploads, starts background indexing |
 | `GET` | `/api/import/progress` | SSE stream of `{stage, message, percent}` |
 | `GET` | `/api/status` | Returns `{indexed, importing, counts}` |
 | `GET` | `/api/emails` | Paginated email list with folder filter + search |

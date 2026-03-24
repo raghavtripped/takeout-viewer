@@ -268,19 +268,23 @@ function indexSaved(extractedDir) {
 
 // ── Main entry point ──────────────────────────────────────────────────────────
 
-async function processZips(zipPaths) {
+async function processFiles(filePaths) {
   db.ensureDirs();
   const extractedDir = db.getExtractedDir();
+
+  // Separate zips from standalone mbox files
+  const zipPaths = filePaths.filter(p => p.toLowerCase().endsWith('.zip'));
+  const standaloneMbox = filePaths.filter(p => p.toLowerCase().endsWith('.mbox'));
 
   // 1. Extract all zips
   for (const zipPath of zipPaths) {
     extractZip(zipPath, extractedDir);
   }
 
-  // 2. Find mbox files
+  // 2. Find mbox files: from extracted zips + any directly uploaded .mbox files
   emit('indexing_emails', 'Finding mbox files...', 22);
   const allFiles = walkDir(extractedDir);
-  const mboxFiles = allFiles.filter(f => f.endsWith('.mbox'));
+  const mboxFiles = [...allFiles.filter(f => f.toLowerCase().endsWith('.mbox')), ...standaloneMbox];
 
   // 3. Index all sections
   const emails = mboxFiles.length > 0
@@ -330,4 +334,4 @@ async function processZips(zipPaths) {
   };
 }
 
-module.exports = { processZips, setProgressCallback };
+module.exports = { processFiles, processZips: processFiles, setProgressCallback };

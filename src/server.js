@@ -5,7 +5,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const db = require('./db');
-const { processZips, setProgressCallback } = require('./indexer');
+const { processFiles, setProgressCallback } = require('./indexer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -49,14 +49,14 @@ app.post('/api/import', upload.array('files'), async (req, res) => {
   if (importRunning) return res.status(409).json({ error: 'Import already in progress' });
   if (!req.files || req.files.length === 0) return res.status(400).json({ error: 'No files uploaded' });
 
-  const zipPaths = req.files.map(f => f.path);
-  res.json({ ok: true, files: zipPaths.map(p => path.basename(p)) });
+  const filePaths = req.files.map(f => f.path);
+  res.json({ ok: true, files: filePaths.map(p => path.basename(p)) });
 
   importRunning = true;
   setProgressCallback(broadcastProgress);
 
   try {
-    const counts = await processZips(zipPaths);
+    const counts = await processFiles(filePaths);
     const summary = [
       counts.emails && `${counts.emails} emails`,
       counts.driveFiles && `${counts.driveFiles} Drive files`,
@@ -75,7 +75,7 @@ app.post('/api/import', upload.array('files'), async (req, res) => {
     broadcastProgress({ stage: 'error', message: err.message, percent: 0 });
   } finally {
     importRunning = false;
-    for (const p of zipPaths) { try { fs.unlinkSync(p); } catch {} }
+    for (const p of filePaths) { try { fs.unlinkSync(p); } catch {} }
   }
 });
 
