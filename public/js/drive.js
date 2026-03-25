@@ -89,7 +89,7 @@ async function loadDrive() {
   else label = `${fileCount} file${fileCount !== 1 ? 's' : ''}`;
   el('drive-count-label').textContent = label;
 
-  renderFolderSidebar(driveState.allFolders);
+  renderDriveFolderSidebar(driveState.allFolders);
   renderBreadcrumb();
   renderDriveContent(subfolders, driveState.allFiles);
 
@@ -104,7 +104,7 @@ async function loadDrive() {
 }
 
 // ── Sidebar (collapsible tree for quick-jump) ───────────────────────────────
-function renderFolderSidebar(allFolders) {
+function renderDriveFolderSidebar(allFolders) {
   const list = el('drive-folder-list');
   if (!list) return;
   const tree = buildFolderTree(allFolders);
@@ -171,6 +171,7 @@ function renderFolderNode(node, depth) {
 // ── Breadcrumb ──────────────────────────────────────────────────────────────
 function renderBreadcrumb() {
   const toolbar = el('drive-toolbar');
+  if (!toolbar) return;
   const oldBc = toolbar.querySelector('.drive-breadcrumb');
   if (oldBc) oldBc.remove();
 
