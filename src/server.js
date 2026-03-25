@@ -115,7 +115,7 @@ app.get('/api/status', (req, res) => {
 
 app.get('/api/emails', (req, res) => {
   const index = db.readIndex();
-  const { q, folder, page = '1', limit = '50' } = req.query;
+  const { q, folder, page = '1', limit = '50', from: fromFilter, to: toFilter, subject: subjectFilter, has } = req.query;
   let emails = index.emails || [];
 
   const folderCounts = {};
@@ -132,8 +132,24 @@ app.get('/api/emails', (req, res) => {
     emails = emails.filter(e =>
       (e.subject || '').toLowerCase().includes(lower) ||
       (e.from || '').toLowerCase().includes(lower) ||
+      (e.to || '').toLowerCase().includes(lower) ||
       (e.snippet || '').toLowerCase().includes(lower)
     );
+  }
+  if (fromFilter) {
+    const lower = fromFilter.toLowerCase();
+    emails = emails.filter(e => (e.from || '').toLowerCase().includes(lower));
+  }
+  if (toFilter) {
+    const lower = toFilter.toLowerCase();
+    emails = emails.filter(e => (e.to || '').toLowerCase().includes(lower));
+  }
+  if (subjectFilter) {
+    const lower = subjectFilter.toLowerCase();
+    emails = emails.filter(e => (e.subject || '').toLowerCase().includes(lower));
+  }
+  if (has === 'attachment') {
+    emails = emails.filter(e => e.hasAttachment);
   }
 
   emails = [...emails].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));

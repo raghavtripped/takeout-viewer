@@ -95,16 +95,70 @@ function escHtml(str) {
   return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-async function loadMail() {
-  const params = new URLSearchParams({
-    folder: state.activeFolder,
-    page: state.mailPage,
-    limit: 50,
-  });
-  if (state.searchQuery) {
-    params.set('q', state.searchQuery);
-    params.delete('folder');  // search across all folders
+// Parse Gmail-style filter tokens from a query string.
+// Returns { from, to, subject, has, q } where q is the remainder.
+function parseMailFilters(raw) {
+  const filters = { from: '', to: '', subject: '', has: '', q: '' };
+  if (!raw) return filters;
+  const rest = raw.replace(/\b(from|to|subject|has)\s*:\s*("[^"]*"|[^\s]+)/gi, (_, key, val) => {
+    filters[key.toLowerCase()] = val.replace(/^"|"$/g, '');
+    return '';
+  }).trim();
+  filters.q = rest;
+  return filters;
+}
+
+function renderMailFilterBar(filters) {
+  const bar = el('mail-filter-bar');
+  const chips = [];
+  if (filters.from)    chips.push({ label: `from: ${filters.from}`,    key: 'from' });
+  if (filters.to)      chips.push({ label: `to: ${filters.to}`,        key: 'to' });
+  if (filters.subject) chips.push({ label: `subject: ${filters.subject}`, key: 'subject' });
+  if (filters.has)     chips.push({ label: `has: ${filters.has}`,      key: 'has' });
+  if (filters.q)       chips.push({ label: `"${filters.q}"`,           key: 'q' });
+
+  if (chips.length === 0) {
+    bar.classList.add('hidden');
+    bar.innerHTML = '';
+    return;
   }
+
+  bar.classList.remove('hidden');
+  bar.innerHTML = chips.map(c =>
+    `<span class="mail-filter-chip" data-key="${c.key}">${escHtml(c.label)} <button class="mail-filter-chip-remove" title="Remove filter">×</button></span>`
+  ).join('');
+
+  bar.querySelectorAll('.mail-filter-chip-remove').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.parentElement.dataset.key;
+      // Remove the token from the search box
+      let newQ = el('search-input').value;
+      if (key === 'q') {
+        newQ = newQ.replace(filters.q, '').trim();
+      } else {
+        newQ = newQ.replace(new RegExp(`\\b${key}\\s*:\\s*"[^"]*"|\\b${key}\\s*:\\s*\\S+`, 'i'), '').trim();
+      }
+      el('search-input').value = newQ;
+      state.searchQuery = newQ;
+      state.mailPage = 1;
+      loadMail();
+    });
+  });
+}
+
+async function loadMail() {
+  const filters = parseMailFilters(state.searchQuery);
+  renderMailFilterBar(filters);
+
+  const params = new URLSearchParams({ folder: state.activeFolder, page: state.mailPage, limit: 50 });
+
+  const hasFilter = filters.from || filters.to || filters.subject || filters.has || filters.q;
+  if (hasFilter) params.delete('folder'); // search across all folders
+  if (filters.q)       params.set('q', filters.q);
+  if (filters.from)    params.set('from', filters.from);
+  if (filters.to)      params.set('to', filters.to);
+  if (filters.subject) params.set('subject', filters.subject);
+  if (filters.has)     params.set('has', filters.has);
 
   let data;
   try {
@@ -212,7 +266,7 @@ function renderEmailDetail(email) {
   let bodyHtml = '';
   const htmlToRender = fixedBodyHtml || (/^\s*<!doctype |^\s*<html/i.test(fixedBodyText) ? fixedBodyText : '');
   if (htmlToRender) {
-    bodyHtml = `<iframe class="email-iframe" srcdoc="${escHtml(htmlToRender)}" sandbox="allow-same-origin allow-popups" style="width:100%;border:none;min-height:400px;margin-top:16px;" onload="this.style.height=this.contentDocument.body.scrollHeight+40+'px'"></iframe>`;
+    bodyHtml = `<iframe class="email-iframe" srcdoc="${escHtml(htmlToRender)}" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" style="width:100%;border:none;min-height:400px;margin-top:16px;" onload="this.style.height=this.contentDocument.body.scrollHeight+40+'px'"></iframe>`;
   } else if (fixedBodyText) {
     bodyHtml = `<pre style="margin-top:16px;white-space:pre-wrap;word-wrap:break-word;font-family:inherit;font-size:14px;line-height:1.6;">${escHtml(fixedBodyText)}</pre>`;
   } else {

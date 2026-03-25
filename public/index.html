@@ -62,7 +62,7 @@
       <div class="header-search">
         <div class="search-wrap">
           <span class="search-icon">🔍</span>
-          <input type="text" id="search-input" class="search-input" placeholder="Search…" autocomplete="off">
+          <input type="text" id="search-input" class="search-input" placeholder="Search… or from:name to:email subject:text has:attachment" autocomplete="off">
           <button class="search-clear hidden" id="search-clear">✕</button>
         </div>
       </div>
@@ -154,6 +154,7 @@
         <div id="view-mail" class="view">
           <div class="email-list-pane" id="email-list-pane">
             <div class="list-header"><span id="email-count-label"></span></div>
+            <div id="mail-filter-bar" class="mail-filter-bar hidden"></div>
             <div id="email-list"></div>
             <div class="pagination" id="mail-pagination"></div>
           </div>
