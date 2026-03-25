@@ -194,10 +194,14 @@ app.get('/api/drive', (req, res) => {
   const folderSet = new Set(files.map(f => f.folder));
   const folders = Array.from(folderSet).sort();
 
-  if (folder) files = files.filter(f => f.folder === folder || f.folder.startsWith(folder + '/'));
+  // Search spans all folders; folder browsing shows exact folder contents only
   if (q) {
     const lower = q.toLowerCase();
     files = files.filter(f => (f.name || '').toLowerCase().includes(lower));
+  } else if (folder !== undefined) {
+    // folder='' or folder='/' → root files only; folder='/foo' → files in /foo only
+    const target = (!folder || folder === '/') ? '/' : folder;
+    files = files.filter(f => f.folder === target);
   }
 
   const sortBy = req.query.sort || 'modified';
