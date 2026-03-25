@@ -120,6 +120,26 @@ function findDir(base, names) {
   return null;
 }
 
+// Like findDir but returns ALL matching directories, and skips dirs that are
+// nested inside another Takeout service folder (e.g. My Activity/Drive).
+function findAllDirs(base, names, _depth) {
+  const depth = _depth || 0;
+  if (!fs.existsSync(base) || depth > 6) return [];
+  const entries = fs.readdirSync(base, { withFileTypes: true });
+  const results = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const entryLower = entry.name.toLowerCase();
+    const matched = names.some(n => entryLower.includes(n.toLowerCase()));
+    if (matched) {
+      results.push(path.join(base, entry.name));
+    } else {
+      results.push(...findAllDirs(path.join(base, entry.name), names, depth + 1));
+    }
+  }
+  return results;
+}
+
 /**
  * Find a specific file by name anywhere in the extracted tree.
  */
@@ -240,22 +260,34 @@ function indexDriveFiles(extractedDir) {
   const PREVIEW_EXTS = new Set(['jpg','jpeg','png','gif','webp','svg','bmp','pdf','txt','html','htm','csv']);
   const SKIP_FILES = new Set(['.ds_store','thumbs.db','.gitkeep','desktop.ini']);
 
-  let driveDir = findDir(extractedDir, ['Google Drive', 'Drive', 'My Drive']);
-  if (!driveDir) {
+  // Find all Drive-named directories, but exclude ones nested inside another
+  // Takeout service folder (e.g. "My Activity/Drive" is activity logs, not files).
+  const DRIVE_NAMES = ['Google Drive', 'Drive', 'My Drive'];
+  const NON_DRIVE_PARENTS = ['my activity', 'activity'];
+  const allDriveDirs = findAllDirs(extractedDir, DRIVE_NAMES).filter(d => {
+    const parent = path.basename(path.dirname(d)).toLowerCase();
+    return !NON_DRIVE_PARENTS.some(n => parent.includes(n));
+  });
+
+  if (allDriveDirs.length === 0) {
     emit('indexing_drive', 'No Drive folder found, skipping.', 70);
     return [];
   }
 
-  const allPaths = walkDir(driveDir).filter(f => {
-    const base = path.basename(f).toLowerCase();
-    return !SKIP_FILES.has(base) && !base.startsWith('.');
-  });
+  const allPaths = allDriveDirs.flatMap(driveDir =>
+    walkDir(driveDir).filter(f => {
+      const base = path.basename(f).toLowerCase();
+      return !SKIP_FILES.has(base) && !base.startsWith('.');
+    })
+  );
 
   const total = allPaths.length;
   const driveFiles = [];
   let lastEmit = 0;
 
   for (const filePath of allPaths) {
+    // Find which driveDir this file belongs to for a clean relative path
+    const driveDir = allDriveDirs.find(d => filePath.startsWith(d + path.sep)) || allDriveDirs[0];
     const rel = path.relative(driveDir, filePath);
     const stat = fs.statSync(filePath);
     const extRaw = path.extname(filePath).replace(/^\./, '').toLowerCase();
