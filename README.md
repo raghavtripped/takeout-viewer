@@ -9,6 +9,7 @@ You export your data from Google, drop the zip file into the app, and it indexes
 ## Table of Contents
 
 - [Install the Desktop App (Easiest)](#install-the-desktop-app-easiest)
+- [Build the Desktop App Yourself](#build-the-desktop-app-yourself)
 - [Run from Source (Developers)](#run-from-source-developers)
 - [How to Use It](#how-to-use-it)
   - [Getting your Google Takeout](#getting-your-google-takeout)
@@ -40,7 +41,7 @@ No terminal. No Node.js. Just download and double-click — exactly like install
 5. Open it from Applications (or Spotlight — press `⌘ Space` and type "Takeout Viewer")
 
 > **"App can't be opened because it's from an unidentified developer"?**
-> This happens because the app isn't signed with an Apple certificate. Right-click the app → **Open** → **Open** again in the dialog. You only have to do this once.
+> Right-click the app → **Open** → **Open** again in the dialog. You only have to do this once.
 
 ### Windows
 
@@ -49,51 +50,39 @@ No terminal. No Node.js. Just download and double-click — exactly like install
 3. Run the installer — click through the prompts
 4. Open **Takeout Viewer** from the Start menu or your Desktop
 
-> **Windows Defender warning?** Click **More info** → **Run anyway**. This appears because the app isn't code-signed. It's safe — everything runs locally on your machine.
+> **Windows Defender warning?** Click **More info** → **Run anyway**. The app isn't code-signed but runs entirely locally.
 
 ### Where your data is stored
 
-The app stores your indexed archive in your system's app-data folder — never inside the app itself:
 - **Mac:** `~/Library/Application Support/Takeout Viewer/data/`
 - **Windows:** `C:\Users\<you>\AppData\Roaming\Takeout Viewer\data\`
 
-This means uninstalling and reinstalling the app does **not** delete your indexed data.
+Uninstalling the app does **not** delete your indexed data.
 
 ---
 
 ## Build the Desktop App Yourself
 
-If you want to build the `.dmg` or `.exe` from source rather than downloading a release:
-
 ```bash
-# Clone the repo
 git clone https://github.com/raghavtripped/takeout-viewer.git
 cd takeout-viewer
-
-# Install dependencies (requires Node.js v18+)
 npm install
 
-# Build for your current platform
 npm run build:mac    # → release/  produces a .dmg
 npm run build:win    # → release/  produces a .exe installer
 npm run build:linux  # → release/  produces an .AppImage
 ```
 
-The built files appear in the `release/` folder.
-
 ---
 
 ## Run from Source (Developers)
-
-If you'd rather run it as a web app in your browser instead of as a desktop app:
 
 **Mac / Linux**
 ```bash
 ./setup.sh
 ```
 
-**Windows**
-Double-click `setup.bat`
+**Windows** — double-click `setup.bat`
 
 **Manual**
 ```bash
@@ -101,42 +90,27 @@ npm install
 npm start
 ```
 
-Then open **http://localhost:3000** in your browser.
-
-Requires **Node.js v18 or newer** — [nodejs.org](https://nodejs.org).
+Then open **http://localhost:3000** in your browser. Requires **Node.js v18+** — [nodejs.org](https://nodejs.org).
 
 <details>
-<summary>Never used a terminal before? Click here for detailed setup instructions.</summary>
+<summary>Never used a terminal before? Click here.</summary>
 
 ### Step 1 — Install Node.js
 
-1. Go to **[nodejs.org](https://nodejs.org)** and click the big **LTS** download button
-2. Run the installer — just click Next/Continue through everything
-3. Close and reopen any terminal windows after it finishes
-4. Verify it worked: open a terminal and type `node --version` — you should see `v22.x.x` or similar
+Go to [nodejs.org](https://nodejs.org), click the **LTS** button, run the installer, then verify with `node --version` in a new terminal.
 
 ### Step 2 — Download this app
 
-**With Git:**
 ```bash
 git clone https://github.com/raghavtripped/takeout-viewer.git
 cd takeout-viewer
 ```
 
-**Without Git — download as a zip:**
-1. Click the green **Code** button on this page → **Download ZIP**
-2. Unzip the downloaded file
-3. Move the folder somewhere you'll remember (Desktop, Documents, etc.)
+Or click the green **Code** button → **Download ZIP**, unzip, and open a terminal in that folder.
 
-### Step 3 — Open a terminal in the app folder
+### Step 3 — Run
 
-**Mac:** Right-click the folder in Finder → **New Terminal at Folder**
-
-**Windows:** Open the folder in File Explorer, click the address bar, type `cmd`, press Enter
-
-### Step 4 — Run the app
-
-**Mac/Linux:** `./setup.sh` (if permission denied, run `chmod +x setup.sh` first)
+**Mac/Linux:** `./setup.sh` (run `chmod +x setup.sh` first if you see "permission denied")
 
 **Windows:** `setup.bat`
 
@@ -145,13 +119,11 @@ cd takeout-viewer
 | Problem | Fix |
 |---|---|
 | `command not found: node` | Close and reopen the terminal after installing Node.js |
-| `permission denied: ./setup.sh` | Run `chmod +x setup.sh` then try again |
-| Port 3000 already in use | App tries 3001, 3002, 3003 automatically — check the terminal for the actual URL |
-| Page won't load | Make sure the terminal is still open and running |
+| `permission denied: ./setup.sh` | Run `chmod +x setup.sh` first |
+| Port 3000 already in use | App tries 3001, 3002, 3003 automatically |
+| Page won't load | Make sure the terminal is still open |
 
 </details>
-
----
 
 ---
 
@@ -160,119 +132,143 @@ cd takeout-viewer
 ### Getting your Google Takeout
 
 1. Go to [takeout.google.com](https://takeout.google.com)
-2. Select the Google products you want to export. For this app the most useful ones are:
-   - **Mail** — your Gmail archive
-   - **Drive** — your Google Drive files
-   - **Calendar** — your events
-   - **Contacts** — your address book
-   - **Keep** — your notes
-   - **Tasks** — your to-do lists
-   - **Chrome** — your bookmarks and browsing history
-   - **Google Chat** — your message history
-   - **Saved** — your starred links from Search and Maps
-3. Choose export format (leave defaults — the app handles all the formats Google uses)
-4. Choose delivery method — "Send download link via email" is easiest
-5. Wait for the email (can take minutes to hours depending on archive size)
-6. Download all the files. Large archives are split into multiple zip parts like `takeout-20240101-001.zip`, `002.zip`, etc. Gmail mail is exported as a separate `.mbox` file — download that too.
+2. Select the products you want: **Mail, Drive, Calendar, Contacts, Keep, Tasks, Chrome, Google Chat, Saved**
+3. Leave format defaults — the app handles all formats Google uses
+4. Choose "Send download link via email", wait for the email, download all files
+5. Large archives are split: `takeout-20240101-001.zip`, `002.zip`, etc. Gmail exports separately as `.mbox` — download that too.
 
 ### Importing your archive
 
-There are two ways to import — choose whichever fits your situation:
-
----
-
 #### Option A — Local paths (recommended for large archives)
 
-This is the fastest method. You unzip the files yourself using macOS/Windows, then paste the folder path into the app. No upload, no in-app extraction — the app reads directly from disk.
+Fastest method — no upload, app reads directly from disk.
 
-1. Unzip your Takeout zip files using your OS (double-click on macOS, right-click → Extract on Windows)
-2. Open the app at [http://localhost:3000](http://localhost:3000)
-3. In the **"or use local paths"** section at the bottom, paste the full path(s) — one per line:
-   - A folder path — e.g. `/Users/you/Downloads/Takeout`
-   - A `.mbox` file path — e.g. `/Users/you/Downloads/All mail Including Spam and Trash.mbox`
-   - Multiple paths if you have several Takeout parts
-4. Click **Process Local Files**
-5. The progress bar shows live status for every stage
+1. Unzip your Takeout files (double-click on macOS; right-click → Extract on Windows)
+2. In the app's **"or use local paths"** section, paste the full path(s) — one per line:
+   - Folder: `/Users/you/Downloads/Takeout`
+   - mbox file: `/Users/you/Downloads/All mail Including Spam and Trash.mbox`
+   - Multiple paths are fine — the app aggregates all of them
+3. Click **Process Local Files** and watch the live progress bar
 
-**Typical time breakdown with local paths:**
+| Stage | Typical time |
+|---|---|
+| Email indexing | 20–60 min |
+| Drive / Calendar / Contacts / etc. | 1–5 min |
+| **Total** | **~20–65 min** |
 
-| Stage | What happens | Typical time |
-|---|---|---|
-| Email indexing | Streams the `.mbox` line-by-line | 20–60 min |
-| Drive / Calendar / Contacts / Keep etc. | Parses files directly from disk | 1–5 min |
-| **Total** | | **~20–65 min** |
+#### Option B — Upload (for smaller archives)
 
-> **Disk space:** No extra space needed — files stay where you unzipped them. Only the index (`~5–8 GB`) is written to the app's data folder.
+1. Drag-and-drop zip files and/or `.mbox` files onto the drop zone, or click "Choose File(s)"
+2. Select all parts at once, then click **Import**
 
----
-
-#### Option B — Upload (for smaller archives or if you want one-click import)
-
-1. Open the app at [http://localhost:3000](http://localhost:3000)
-2. Drag-and-drop your file(s) into the drop zone, or click "Choose File(s)"
-3. You can mix and match in a single import:
-   - **Zip files** — the standard Takeout download format (e.g. `takeout-20240101-001.zip`)
-   - **`.mbox` files** — Gmail exports this as a standalone file (e.g. `All mail Including Spam and Trash.mbox`). Select it alongside your zips or on its own
-4. Select all files at once (all zip parts + the mbox), then click **Import**
-5. The progress bar shows live status for every stage — upload speed, emails/sec with ETA, zip extraction progress, and time taken for each data type
-
-**Typical time breakdown for a large archive (~20 GB total):**
-
-| Stage | What happens | Typical time |
-|---|---|---|
-| Upload | Browser sends files to local server | 5–15 min |
-| Email indexing | Streams the `.mbox` line-by-line, writes one JSON per email | 20–60 min |
-| Zip extraction | Streams each zip entry-by-entry to disk | 5–15 min |
-| Drive / Calendar / Contacts / Keep etc. | Parses extracted files | 1–5 min |
-| **Total** | | **~30–90 min** |
-
-> **Disk space:** Peak usage = size of all uploaded files + extracted size of zips. For a typical full archive (16 GB mbox + 3.5 GB zips), expect ~25 GB peak. After import finishes, the uploads are deleted and usage drops to ~5–8 GB permanently.
+| Stage | Typical time |
+|---|---|
+| Upload | 5–15 min |
+| Email indexing | 20–60 min |
+| Zip extraction | 5–15 min |
+| Drive / Calendar / etc. | 1–5 min |
+| **Total** | **~30–90 min** |
 
 ---
 
-A red **✕ Cancel & Clear** button is always visible during import — clicking it immediately stops everything and wipes all partial data so you can start fresh.
+A red **✕ Cancel & Clear** button is always visible during import — it stops immediately and wipes partial data.
 
-To re-import or start fresh, click the 🗑 icon in the top-right corner, which wipes the index and returns you to the import screen.
+To start fresh at any time, click the 🗑 icon in the top-right corner.
 
 ### Browsing your data
 
-- **Search bar** (top center) — searches within whatever tab you're currently on, with a 300ms debounce so results update as you type
-- **Sidebar** — switches between data types; each tab has its own sub-navigation (folders, labels, view modes)
-- **Tabs are hidden** if you didn't export that data type — only tabs with actual content appear
-- **Port conflict** — if port 3000 is already in use, the app automatically tries 3001, 3002, 3003
+- **Search bar** — searches within the active tab as you type
+- **Sidebar** — sub-navigation per tab (folders, labels, view modes, filters)
+- **Tabs are hidden** when you have no data for that type — only tabs with content appear
+- **Port fallback** — if 3000 is in use, the app automatically tries 3001, 3002, 3003
 
 ---
 
 ## What Each Tab Does
 
 ### Mail
-Displays your Gmail archive. The left panel shows an email list — sender, subject, snippet, and date, styled like Gmail's inbox. Bold rows are unread; clicking an email marks it as read (persisted to disk, survives page refresh) and opens the full email in a right-side detail pane. HTML emails render in a sandboxed iframe; plain-text emails render in a `<pre>` block. The sidebar shows all your folders (Inbox, Sent, Drafts, Trash, Spam, Starred, and any custom labels) with message counts. You can filter by folder or search across all mail simultaneously.
+
+Gmail-style inbox for your full email archive.
+
+- **Email list** — sender, subject, snippet, labels, 📎 attachment indicator, date. Bold = unread.
+- **Reading pane** — opens to the right. Read state persists across page refreshes.
+- **HTML emails** render in a sandboxed iframe. Links open correctly in new tabs.
+- **Plain-text emails** render in a `<pre>` block.
+- **Attachments** — shown as clickable chips with file-type icons and sizes, just like Gmail. Click to open or download directly.
+- **Folder sidebar** — all Gmail folders (Inbox, Sent, Drafts, Trash, Spam, Starred, custom labels) with message counts.
+- **Advanced search filters** — type filter tokens directly in the search bar:
+
+  | Token | Example | Effect |
+  |---|---|---|
+  | `from:` | `from:alice` | Only emails from that sender |
+  | `to:` | `to:bob@example.com` | Only emails to that recipient |
+  | `subject:` | `subject:invoice` | Only emails matching that subject |
+  | `has:attachment` | `has:attachment` | Only emails with attachments |
+
+  Combine freely: `from:alice subject:invoice has:attachment`. Active filters appear as removable blue chips below the email list — click ✕ on any chip to remove that filter.
+
+- **Encoding repair** — automatically fixes UTF-8 mojibake (garbled `Â ` characters) that appears in some exported emails due to quoted-printable decoding bugs.
 
 ### Drive
-Shows every file from your Google Drive export. Toggle between a card grid view and a table list view using the buttons in the top-right. Click any file to open a preview modal — images render inline, PDFs open in an embedded viewer, and everything else shows a metadata card with a download button. The sidebar shows the full folder tree; clicking a folder filters the file list to that folder and its subfolders.
+
+A hierarchical file browser that mirrors your actual Google Drive folder structure.
+
+- **Folder navigation** — starts at root (My Drive), showing only top-level folders and root files. Click a folder to go inside; only that folder's direct contents are shown.
+- **Breadcrumb** — shows current path (My Drive / Projects / 2024) with clickable segments to jump back up
+- **Sidebar tree** — collapsible full folder tree for quick-jumping to any nested folder
+- **Grid view** — file cards with image thumbnails (lazy-loaded), emoji icons for other types
+- **List view** — sortable table; click Name, Size, or Modified to sort
+- **File preview** — click any file:
+  - Images render inline
+  - PDFs open in an embedded viewer
+  - Text / CSV / HTML shows content in a scrollable pane
+  - Anything else shows a metadata card with a download button
+- **Search** — spans all files across all folders globally
+- **Download** — every file has a ⬇ button
 
 ### Calendar
-Shows your Google Calendar events. The sidebar lets you switch between **List view** (events in chronological order, grouped by date, with time and location) and **Month grid view** (a classic calendar layout with event chips on each day). Use the ← → buttons to navigate by month. Recurring events are marked with a ↻ badge.
+
+- **List view** — events grouped by day, with time range and location
+- **Month grid** — classic calendar layout with event chips; click "+N more" to see all events for a day
+- **← → navigation** — move between months
+- **Event modal** — full details: description, location, attendees, URL, categories, recurrence
+- Recurring events marked with ↻
 
 ### Contacts
-A card grid of your Google Contacts, sorted alphabetically. Each card shows the contact's initials (color-coded by name), primary email, and organization. Click any card to open a detail modal with all their emails, phone numbers, job title, and notes.
+
+- **Avatar cards** — colored initials (color from name hash), organisation, primary email
+- **Detail modal** — all emails (with type: Home/Work), all phones, physical addresses, URLs, birthday, notes
 
 ### Keep
-Your Google Keep notes displayed as a masonry card grid — each card uses the same background color you assigned in Keep (yellow, teal, pink, etc.). Pinned notes appear first. Checklist notes show each item with its checked/unchecked state. The sidebar lets you filter by label.
+
+- **Full color palette** — all 14 Keep colors (Default, Red, Pink, Purple, Blue, Teal, Sage, Gray, Brown, Orange, Yellow, Green, Cerulean, Spearmint)
+- **Pinned notes** appear first with 📌; archived notes show 🗄
+- **Checklist notes** show each item checked/unchecked
+- **Label sidebar** — filter to notes with a specific label
+- **Note modal** — full text, all list items, labels, timestamps
 
 ### Tasks
-Your Google Tasks history, split into two columns — **Pending** on the left and **Completed** on the right. Pending tasks with a past due date are highlighted in red. Click the sidebar buttons to filter to just pending or just completed.
+
+- **Two columns** — Pending and Completed, each with a count badge
+- **Overdue highlighting** — past due dates shown in red
+- **Checklist style** — ✅ completed / ⬛ pending
+- **Sidebar filters** — All / Pending / Completed
 
 ### Chrome
-Your Chrome bookmarks and browsing history. Use the sidebar to switch between the two sub-views:
-- **Bookmarks** — organized by folder, each entry shows the page title, domain, and the date you bookmarked it
-- **History** — reverse-chronological list of every page you visited, grouped by date, with the time of visit. Both views show favicons fetched from Google's favicon service.
+
+- **Bookmarks** — organized by folder with an interactive sidebar. Title, domain, date added.
+- **History** — reverse-chronological, grouped by date, with time of visit
+- **Privacy** — no Google favicon requests. All icons are locally-generated letter avatars with deterministic colors.
 
 ### Chat
-Your Google Chat / Hangouts message history. The left panel lists all conversations with participant names and message counts. Clicking a conversation opens the full message thread in the right panel, styled as a chat UI with speech bubbles — your messages on the right, others on the left. Long conversations are paginated.
+
+- **Conversation list** — 👤 DM or 👥 group, name, message count, last date
+- **Chat bubbles** — your messages right (blue), others left (gray), timestamps, date separators
+- **Smart "you" detection** — finds your identity by picking the most frequent sender across all conversations (no hardcoded assumptions)
 
 ### Saved
-Your starred links from Google Search and Google Maps. Simple list with title, domain, favicon, and the date saved. Clicking a link opens it in a new tab.
+
+Starred links from Google Search and Maps — letter avatars, title, domain, date saved, folder badge.
 
 ---
 
@@ -288,217 +284,139 @@ Express server (Node.js)
 JSON files on disk  +  Extracted Takeout files
 ```
 
-No database engine, no React, no TypeScript, no build step. The entire stack is:
-
 | Layer | Technology | Reason |
 |---|---|---|
 | Server | Node.js + Express 4 | Simple, stable, zero config |
 | File uploads | multer | Standard multipart middleware |
-| Zip extraction | unzipper | Streaming — entries piped directly to disk, no full-file RAM buffer |
-| Storage | JSON files on disk | Universally readable, no native bindings |
-| Progress | Server-Sent Events (SSE) | Built into browsers, simpler than WebSockets |
-| Frontend | Vanilla HTML/CSS/JS | Zero build step, easy to share, easy to read |
-
-The decision to use JSON files instead of SQLite was deliberate — SQLite requires `node-gyp` native compilation which regularly breaks on people's machines. JSON files are slower for huge datasets but fast enough for the archive sizes involved (filtering 20,000 emails in memory takes under 200ms), and they're universally debuggable.
+| Zip extraction | unzipper | Streaming — entries piped to disk, no RAM buffer |
+| Storage | JSON files on disk | No native bindings, universally debuggable |
+| Progress | Server-Sent Events | Built into browsers, simpler than WebSockets |
+| Frontend | Vanilla HTML/CSS/JS | Zero build step, easy to read and share |
 
 ### The import pipeline
 
-There are two import paths:
-
-**Path A — Local paths (no upload)**
+**Path A — Local paths**
 ```
-1. User pastes folder/mbox paths in UI → POST /api/import/local
-
-2. indexer.processLocalPaths():
-   ├── classify each path: dir / .mbox / .zip
-   ├── index any .mbox files first (email-first ordering)
-   ├── extract any .zip paths via streaming unzipper
-   └── walk each dir, running all parsers in place
-
-3. Route files to the right parser (same as Path B step 4)
-
-4. Write final data/index.json
-
-5. Emit SSE "done" → browser redirects to Mail tab
+POST /api/import/local
+  → classify paths: dir / .mbox / .zip
+  → index .mbox files first
+  → extract any .zip files
+  → walk each dir through all parsers
+  → write index.json + emails/ + attachments/
+  → SSE "done"
 ```
 
-**Path B — Upload + extract (browser file picker)**
+**Path B — Upload**
 ```
-1. multer saves all files to data/uploads/
-
-2. indexer.processFiles():
-   ├── *.mbox → index emails FIRST (before zip extraction uses disk space)
-   │            streams line-by-line, writes emails/ + partial index.json
-   └── *.zip  → extract via streaming (unzipper) to data/extracted/
-                never loads whole zip into RAM — entries piped directly to disk
-
-3. Walk the extracted directory tree for any mbox files inside zips
-
-4. Route files to the right parser:
-   ├── *.mbox       → mboxParser     → emails (streamed line-by-line)
-   ├── Keep/*.json  → keepParser     → notes
-   ├── Tasks/*.ics  → tasksParser    → VTODO blocks
-   ├── *.ics        → icsParser      → VEVENT blocks (calendar)
-   ├── *.vcf        → vcfParser      → contacts
-   ├── Chrome/      → chromeParser   → bookmarks + history
-   ├── Google Chat/ → chatParser     → conversations
-   ├── Saved/       → savedParser    → links
-   └── Google Drive/ → (direct file walk) → drive index
-
-5. Write final data/index.json with all metadata arrays
-
-6. Emit SSE "done" event → browser auto-redirects to Mail tab
+multer → data/uploads/
+  → index .mbox first (email-first ordering)
+  → stream-extract .zip files to data/extracted/
+  → walk extracted tree through all parsers
+  → write index.json + emails/ + attachments/
+  → SSE "done"
 ```
 
-Every stage emits live progress: email indexing shows `bytes read / total · emails/sec · ~N min left`; zip extraction shows `bytes / size · % · time remaining`; Drive shows file count with ETA; all others show elapsed time on completion. A **✕ Cancel & Clear** button is always visible — it stops the parser at the next boundary, wipes all data, and resets to a clean state immediately.
+**Drive folder discovery** — Takeout often splits Drive across multiple zip parts (`Takeout 4/Drive/`, `Takeout 5/Drive/`). The indexer recursively finds **all** directories named Drive/My Drive/Google Drive, then excludes false positives like `My Activity/Drive/` (activity logs). All discovered Drive dirs are merged into a single index.
+
+Every stage emits live progress with ETA. A **✕ Cancel & Clear** button stops at the next checkpoint.
 
 ### Data storage
 
-Everything lives in a `data/` directory that is gitignored:
-
 ```
 data/
-├── index.json          ← master index (all metadata + read state)
-├── emails/
-│   ├── email-0-123.json
-│   ├── email-1-456.json
-│   └── ...             ← one file per email (full body)
+├── index.json          ← all metadata + read state
+├── emails/             ← one JSON per email (full body, loaded on demand)
+├── attachments/        ← extracted email attachments (up to 25 MB each)
+│   └── email-0-123/
+│       └── report.pdf
 ├── extracted/          ← unzipped Takeout contents
-└── uploads/            ← temporary zip landing zone (deleted after import)
+└── uploads/            ← temporary (deleted after import)
 ```
 
-**`index.json` structure:**
-```json
-{
-  "indexed": true,
-  "indexedAt": "2026-03-21T10:00:00Z",
-  "readEmailIds": ["email-0-123", "email-1-456"],
-  "emails": [/* metadata only, no bodies */],
-  "driveFiles": [/* file metadata + fullPath for serving */],
-  "events": [],
-  "contacts": [],
-  "keepNotes": [],
-  "tasks": [],
-  "chromeBookmarks": [],
-  "chromeHistory": [],
-  "chatConversations": [/* includes full messages array */],
-  "savedLinks": []
-}
-```
+`index.json` holds lightweight metadata for all data types. Email bodies and attachments are stored separately and read only when needed.
 
-Email metadata rows are kept tiny (subject, from, date, snippet, labels) so the entire index loads fast. Full bodies live in individual files and are only read when you open a specific email. Chat conversations store their full message arrays in the index since they're typically small.
-
-**Read/unread state** is stored as a `readEmailIds` array inside `index.json`. When you open an email, the browser fires `PATCH /api/emails/:id/read` which appends the ID and rewrites the index file. On every subsequent page load the email list response includes the full `readIds` array, which the frontend uses to re-hydrate its in-memory Set.
+**Read/unread state** — stored as `readEmailIds` in `index.json`. Updated via `PATCH /api/emails/:id/read` when you open an email. Re-hydrated into a frontend Set on every page load.
 
 ### Parser details
 
-#### mboxParser.js — the most critical file
+#### mboxParser.js
 
-MBOX is a plain-text format where emails are concatenated with `From ` lines as separators. A large Gmail export can be a 10+ GB single file. The parser never loads it all into memory — it streams line-by-line using Node's `readline` module:
+Streams the mbox line-by-line via `readline`. Never loads the full file into memory. Per-email processing:
 
-```
-createReadStream(path)
-  → readline interface (processes one line at a time)
-  → accumulate lines until the next "From " boundary
-  → parse the accumulated buffer as one complete email
-  → call onEmail(metadata, fullEmail) and await it
-  → clear buffer, repeat
-```
-
-Each parsed email goes through:
-1. **Header parsing** — splits at the first blank line, handles folded header continuation lines (RFC 2822 says lines starting with whitespace are continuations of the previous header)
-2. **RFC 2047 decoding** — subject lines and sender names are often encoded as `=?UTF-8?B?SGVsbG8=?=` (base64) or `=?UTF-8?Q?Hello_world?=` (quoted-printable). The parser decodes these so you see actual text instead of garbled encoding
-3. **MIME multipart handling** — most emails have multiple parts (plain text, HTML, attachments). The parser finds the `boundary=` parameter in the Content-Type header and splits the body on that boundary recursively, extracting `text/plain` and `text/html` parts
-4. **Body decoding** — each part may be base64 or quoted-printable encoded; both are decoded
-5. **Snippet generation** — prefers the plain text part; strips HTML tags from the HTML part as fallback; takes the first 200 characters
-6. **Folder detection** — Gmail adds an `X-Gmail-Labels` header with comma-separated label names. The parser maps these to folder names (Inbox, Sent, Trash, Spam, Drafts, Starred, All Mail)
-7. **Date parsing** — email dates are notoriously inconsistent. The parser tries `new Date(cleaned)`, strips timezone abbreviations like `(PST)` that confuse the parser, and falls back to epoch 0 for completely unparseable dates (these sort to the bottom)
+1. **Header parsing** — RFC 2822 folded continuations joined to parent line
+2. **RFC 2047 decoding** — `=?UTF-8?B?...?=` (base64) and `=?UTF-8?Q?...?=` (quoted-printable). Q-encoding fix: collects bytes into an array then calls `Buffer.from(bytes).toString('utf8')` — this correctly handles multi-byte sequences that were previously decoded as mojibake (`Â ` etc.)
+3. **MIME multipart** — recursive boundary splitting; single-part HTML emails detected by outer `Content-Type: text/html` (no boundary)
+4. **Body decoding** — both base64 and QP decoded via byte-array approach
+5. **Attachment extraction** — `Content-Disposition: attachment` or `filename=` param → saved to `data/attachments/<emailId>/` (≤25 MB; larger marked unavailable)
+6. **Snippet** — first 200 chars of plain text (or tag-stripped HTML)
+7. **Folder detection** — `X-Gmail-Labels` header mapped to standard folder names
+8. **Date parsing** — tries multiple formats, strips timezone abbrs, falls back to epoch 0
 
 #### icsParser.js
 
-Google Calendar exports `.ics` files containing `VEVENT` blocks. The parser:
-- Unfolds continuation lines (RFC 5545 allows wrapping long lines with a leading space)
-- Handles two date formats: all-day (`20240315`) and datetime (`20240315T120000Z`)
-- Strips `TZID=` prefixes from property keys
-- Stores `RRULE` as a raw string and marks recurring events with a flag for display
-
-#### tasksParser.js
-
-Same ICS format as Calendar but `VTODO` blocks instead of `VEVENT`. The indexer intentionally scopes this parser to only the `Tasks/` directory so Tasks and Calendar don't parse each other's files. VTODO has `STATUS:COMPLETED` or `STATUS:NEEDS-ACTION`, plus optional `DUE` and `COMPLETED` timestamps.
+- Unfolds RFC 5545 continuation lines
+- All date formats: UTC (`Z`), local, TZID-aware, all-day (`YYYYMMDD`)
+- Extracts attendees (`CN=` + `mailto:`), URL, CATEGORIES, DESCRIPTION
+- RRULE stored as raw string; recurring events flagged
 
 #### vcfParser.js
 
-vCard format — each contact is a `BEGIN:VCARD ... END:VCARD` block. The parser:
-- Unfolds continuation lines
-- Handles multiple `EMAIL` and `TEL` properties per contact (collects all into arrays)
-- Strips parameter suffixes from property keys (e.g. `EMAIL;TYPE=INTERNET` → just `EMAIL`)
-- Skips `PHOTO` fields entirely (base64-encoded images would bloat the index massively)
-
-#### keepParser.js
-
-Google Keep exports one JSON file per note. Each file has a flat structure — the parser reads all `*.json` files from the `Keep/` directory, converts microsecond timestamps to milliseconds, and normalizes the checklist `listContent` array. Notes are sorted with pinned ones first, then by last-edited time descending.
+- Emails → `[{address, type}]`, phones → `[{number, type}]`
+- Physical addresses from `ADR` → `{type, street, city, state, zip, country}`
+- `BDAY` normalized to `YYYY-MM-DD`; `URL`, `NICKNAME`, `ORG`, `TITLE`, `NOTE` all extracted
+- `PHOTO` skipped; `hasPhoto: true` flag set when present
 
 #### chromeParser.js
 
-Two parsers in one file:
-
-**Bookmarks** use the Netscape bookmark HTML format — the same format used by every browser's import/export function since the 1990s. The parser tracks folder context by watching for `<H3>` headings (folder names) and `</DL>` closing tags (folder ends), building a stack to assign each `<A>` link to its correct folder. The `ADD_DATE` attribute is a Unix timestamp in seconds.
-
-**History** is a JSON file with a `Browser History` array. The tricky part is the timestamp: Chrome stores time as microseconds since **January 1, 1601** (the Windows FILETIME epoch), not the Unix epoch. The conversion is: subtract `11644473600 × 10^6` microseconds to get to Unix epoch, then divide by 1000 for milliseconds.
+- Bookmarks: Netscape HTML format, folder context tracked via `<H3>`/`</DL>` stack
+- History: Windows FILETIME epoch fix — `time_usec / 1000 - 11644473600000`; fallback for Unix microseconds
+- All Google favicon API requests removed; replaced with letter avatars
 
 #### chatParser.js
 
-Google Chat exports one `messages.json` per conversation, organized into `Groups/` and `DMs/` subdirectories. Each file has a `messages` array where each message has a `creator` object and a `created_date` string in a verbose human format like `"Wednesday, January 15, 2025 at 10:00:00 AM UTC"`. The parser strips the weekday prefix and converts "at" separators to make it parseable by `new Date()`.
-
-#### savedParser.js
-
-Reuses the Netscape bookmark HTML parser from `chromeParser.js`. Google's Saved exports use the same format. A JSON fallback handles alternative export formats.
+- Scans all `messages.json` files across `Groups/` and `DMs/`
+- "You" = most frequent sender across all conversations
 
 ### The server and API
 
-`server.js` is a single Express app. All routes follow the same pattern: read the index from disk, filter in memory, paginate, respond.
-
-**Why read the index on every request?** Because it's a local app with one user and a file that's at most a few MB. The overhead of `JSON.parse` on each request is negligible compared to the simplicity of not having to manage an in-memory cache that can go stale.
-
-**Full route list:**
-
 | Method | Route | What it does |
 |---|---|---|
-| `POST` | `/api/import` | Accepts zip and/or .mbox uploads, starts background indexing |
-| `GET` | `/api/import/progress` | SSE stream of `{stage, message, percent}` |
-| `GET` | `/api/status` | Returns `{indexed, importing, counts}` |
-| `GET` | `/api/emails` | Paginated email list with folder filter + search |
-| `GET` | `/api/emails/:id` | Full email body from individual JSON file |
-| `PATCH` | `/api/emails/:id/read` | Marks email as read, persists to index.json |
-| `GET` | `/api/drive` | Paginated file list with folder filter + search |
-| `GET` | `/api/drive/download/:id` | Serves file with `Content-Disposition: attachment` |
-| `GET` | `/api/drive/preview/:id` | Serves file inline (for image/PDF preview) |
-| `GET` | `/api/calendar` | Events filtered by year + month + search |
-| `GET` | `/api/contacts` | Contacts sorted alphabetically, searchable |
-| `GET` | `/api/keep` | Notes filtered by label + search, paginated |
-| `GET` | `/api/tasks` | Returns `{pending, completed}` split, searchable |
-| `GET` | `/api/chrome` | Bookmarks or history (`?type=`), paginated |
-| `GET` | `/api/chat` | Conversation list, or messages for one conversation |
-| `GET` | `/api/saved` | Saved links, paginated, searchable |
-| `POST` | `/api/reset` | Deletes the entire `data/` directory |
+| `POST` | `/api/import` | Upload zip/mbox files, start indexing |
+| `POST` | `/api/import/local` | Import from local paths without uploading |
+| `GET` | `/api/import/progress` | SSE stream — `{stage, message, percent}` |
+| `GET` | `/api/status` | `{indexed, importing, counts}` |
+| `GET` | `/api/emails` | Paginated list; filters: `folder`, `q`, `from`, `to`, `subject`, `has` |
+| `GET` | `/api/emails/:id` | Full email body |
+| `PATCH` | `/api/emails/:id/read` | Mark read, persist to disk |
+| `GET` | `/api/attachments/:emailId/:filename` | Serve extracted attachment |
+| `GET` | `/api/drive` | Folder browser (exact-folder match); `q` searches globally |
+| `GET` | `/api/drive/download/:id` | Download file |
+| `GET` | `/api/drive/preview/:id` | Inline preview (image/PDF/text) |
+| `GET` | `/api/calendar` | Events by year/month/search |
+| `GET` | `/api/contacts` | Alphabetical, searchable |
+| `GET` | `/api/keep` | By label + search, paginated |
+| `GET` | `/api/tasks` | Pending/completed split, searchable |
+| `GET` | `/api/chrome` | Bookmarks or history (`?type=`) |
+| `GET` | `/api/chat` | Conversation list or messages |
+| `GET` | `/api/saved` | Paginated, searchable |
+| `POST` | `/api/abort` | Stop in-progress import |
+| `POST` | `/api/reset` | Wipe all data |
 
-**Port fallback:** The server tries to listen on port 3000. If it gets `EADDRINUSE`, it tries 3001, then 3002, then 3003. This is handled by a recursive `startServer(port, attemptsLeft)` function on the server's error event.
+All HTML/JS/CSS served with `Cache-Control: no-store` — updates always load immediately.
 
 ### The frontend
 
-Single HTML page (`public/index.html`) with no framework and no build step. JavaScript is split into one file per tab, all loaded via `<script>` tags.
+Single `index.html`, one JS file per tab, no framework, no build step.
 
-**State management** (`app.js`): a plain object called `state` holds everything — active tab, search query, current page numbers, selected email ID, which chat conversation is open, etc. There's no reactivity system; functions simply read from `state` and re-render their DOM sections when called.
+**State** — plain `state` object in `app.js`. Functions read state and re-render their DOM sections.
 
-**Tab routing**: `switchTab(tab)` hides all views and shows the target one, hides all sidebar sections and shows the target one, then calls the appropriate `load*()` function. Tabs with zero items have the CSS class `nav-item-hidden` applied at boot time based on the counts in `/api/status`.
+**Tab routing** — `switchTab(tab)` hides all views/sidebars, shows the target, calls `load*()`.
 
-**Search**: A single search input in the header fires whichever `load*()` function matches the active tab, with a 300ms debounce to avoid hammering the server on every keystroke.
+**Email sandbox** — `<iframe srcdoc="..." sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox">`. The `allow-popups-to-escape-sandbox` flag lets links opened from emails load normally in new tabs (without it, target pages see JavaScript as disabled).
 
-**Pagination**: A shared `renderPagination(containerId, page, total, pageSize, onPage)` helper is used by all paginated views. It renders Previous/Next buttons and a count label.
+**Drive browser** — `getDirectSubfolders(allFolders, parent)` computes immediate children. Root shows top-level folders + root files. Clicking into a folder fetches only that folder's files. Search bypasses folder filtering.
 
-**Drive preview modal**: Clicking a file in Drive determines the file type by extension. Images (`jpg`, `png`, `gif`, `webp`, `svg`) get an `<img>` tag pointing at `/api/drive/preview/:id`. PDFs get an `<iframe>`. Everything else gets a metadata summary and download button. The preview endpoint uses `res.sendFile()` without `Content-Disposition: attachment` so the browser renders it inline.
-
-**Email rendering**: HTML email bodies are injected into a sandboxed `<iframe>` using the `srcdoc` attribute. The sandbox prevents scripts from running while still allowing the HTML and CSS to render. The iframe height is set to match its content via an `onload` handler.
+**Letter avatars** — `domainColor(str)` hashes the input to one of 12 colors; `domainInitial(str)` returns the first letter. Replaces all external favicon requests.
 
 ---
 
@@ -507,52 +425,56 @@ Single HTML page (`public/index.html`) with no framework and no build step. Java
 ```
 takeout-viewer/
 │
-├── package.json          — Dependencies: express, multer, adm-zip
-├── setup.sh              — Mac/Linux quick-start script
-├── setup.bat             — Windows quick-start script
+├── package.json          — Dependencies + Electron build config (dmg/exe/AppImage)
+├── setup.sh              — Mac/Linux one-command start
+├── setup.bat             — Windows one-command start
 │
 ├── src/
-│   ├── server.js         — Express app, all API routes, SSE, port fallback
-│   ├── db.js             — Read/write index.json, email files, read state
-│   ├── indexer.js        — Zip extraction, walks directory, calls all parsers
-│   ├── mboxParser.js     — Streaming line-by-line mbox parser
-│   ├── icsParser.js      — VEVENT parser for Google Calendar
-│   ├── tasksParser.js    — VTODO parser for Google Tasks
-│   ├── vcfParser.js      — VCARD parser for Google Contacts
-│   ├── keepParser.js     — JSON parser for Google Keep notes
-│   ├── chromeParser.js   — Netscape HTML bookmarks + Chrome history JSON
-│   ├── chatParser.js     — Google Chat messages.json parser
-│   └── savedParser.js    — Saved links HTML/JSON parser
+│   ├── server.js         — Express app, all API routes, SSE, no-cache headers, port fallback
+│   ├── db.js             — index.json r/w, email files, attachments dir, read state
+│   ├── indexer.js        — Zip extraction, multi-dir Drive discovery, calls all parsers
+│   ├── mboxParser.js     — Streaming mbox, MIME multipart, attachment extraction, UTF-8 fix
+│   ├── icsParser.js      — VEVENT (calendar): TZID, attendees, all-day, recurring
+│   ├── tasksParser.js    — VTODO (tasks): status, due/completed dates
+│   ├── vcfParser.js      — vCard: multi-email/phone with types, addresses, birthday, URLs
+│   ├── keepParser.js     — Keep JSON: notes, checklists, colors, labels
+│   ├── chromeParser.js   — Bookmarks HTML + history JSON, FILETIME fix, no favicons
+│   ├── chatParser.js     — Chat messages.json, "you" detection
+│   └── savedParser.js    — Saved links HTML/JSON
 │
 └── public/
-    ├── index.html        — Single-page shell, all views declared here
+    ├── index.html        — Single-page shell
     ├── css/
-    │   └── app.css       — All styles; Gmail-faithful design system
+    │   └── app.css       — All styles
     └── js/
-        ├── app.js        — Global state, tab router, search, onboarding, SSE
-        ├── mail.js       — Email list, folder sidebar, detail pane, read state
-        ├── drive.js      — File grid/list, folder tree, preview modal
-        ├── calendar.js   — Event list and month grid, month navigation
-        ├── contacts.js   — Contact cards, detail modal
-        ├── keep.js       — Masonry note grid, label filter sidebar
-        ├── tasks.js      — Two-column pending/completed layout
-        ├── chrome.js     — Bookmarks by folder, history by date
-        ├── chat.js       — Conversation list, message thread panel
-        └── saved.js      — Saved links list
+        ├── app.js        — State, tab router, search, onboarding, SSE
+        ├── mail.js       — Email list, folder sidebar, detail pane, attachments, search filters
+        ├── drive.js      — Folder browser, breadcrumb, grid/list, preview modal
+        ├── calendar.js   — List + month grid, event modal
+        ├── contacts.js   — Avatar cards, full detail modal
+        ├── keep.js       — Masonry grid, 14-color palette, note modal
+        ├── tasks.js      — Checklist columns, overdue highlighting
+        ├── chrome.js     — Bookmarks by folder, history by date, letter avatars
+        ├── chat.js       — Conversation list, chat bubbles, date separators
+        └── saved.js      — Links list with letter avatars
 ```
 
 ---
 
 ## Design Decisions
 
-**Why no database?** SQLite requires native compilation via `node-gyp`, which fails on many machines due to missing build tools, Python version mismatches, or Xcode license issues. JSON files on disk work everywhere, are human-readable, and are fast enough for personal archive sizes.
+**Why no database?** SQLite requires `node-gyp` native compilation which fails on many machines. JSON files work everywhere and are fast enough for personal archive sizes.
 
-**Why no React/Vue/build step?** The app is meant to be shared with non-developers. A build step means `npm run build` can fail, creates a `dist/` folder to explain, and adds complexity for zero user-visible benefit. Vanilla JS means anyone can open any file and immediately understand it.
+**Why no framework/build step?** Vanilla JS means anyone can open any file and understand it immediately. No build failures, no `dist/` folder to explain.
 
-**Why streaming the mbox?** Gmail archives commonly exceed 10GB as a single `.mbox` file. Loading that into memory would crash the Node process. The `readline` approach keeps memory usage flat regardless of file size — only one email is ever in RAM at a time.
+**Why stream the mbox?** Gmail archives exceed 10 GB. Loading into RAM would crash Node. `readline` keeps memory flat regardless of file size — one email in memory at a time.
 
-**Why individual files for email bodies?** The full text/HTML of all your emails would make `index.json` enormous and slow to parse on every request. Storing metadata in the index and bodies in separate files means the index stays small and fast. Email bodies are only read when you actually open that specific email.
+**Why individual files for email bodies?** Storing all bodies in `index.json` would make it huge and slow. Metadata in the index, bodies on demand.
 
-**Why SSE instead of WebSockets?** Server-Sent Events are unidirectional (server → client only), which is exactly what progress reporting needs. They work over plain HTTP, require no handshake protocol, and are handled natively by `EventSource` in every browser. WebSockets would add complexity for no benefit here.
+**Why SSE instead of WebSockets?** SSE is unidirectional server → client, which is all progress reporting needs. No handshake, works over plain HTTP, native `EventSource` in every browser.
 
-**Why tabs hidden at zero?** If you only exported Gmail and Contacts, seeing six empty tabs for Drive/Calendar/Keep/Tasks/Chrome/Chat/Saved is confusing and makes the app feel broken. Hiding them makes the app feel like it's exactly shaped for your data.
+**Why hide tabs at zero?** Six empty tabs is confusing. Showing only tabs with data makes the app feel shaped for your specific export.
+
+**Why remove favicon requests?** The app is a private archive viewer. Requesting `https://www.google.com/s2/favicons?domain=...` for every bookmark and history entry leaks your data to Google. Letter avatars are fully local.
+
+**Why `allow-popups-to-escape-sandbox`?** Without it, links clicked inside HTML emails open new tabs that inherit the sandbox — the target page sees JavaScript as disabled and refuses to load. This flag lets the popup escape into a normal browsing context.
