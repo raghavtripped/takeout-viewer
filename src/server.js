@@ -173,7 +173,19 @@ app.get('/api/drive', (req, res) => {
     files = files.filter(f => (f.name || '').toLowerCase().includes(lower));
   }
 
-  files = [...files].sort((a, b) => new Date(b.modified) - new Date(a.modified));
+  const sortBy = req.query.sort || 'modified';
+  const sortDir = req.query.sortDir || 'desc';
+
+  files = [...files].sort((a, b) => {
+    let va = a[sortBy], vb = b[sortBy];
+    if (sortBy === 'size') { va = va || 0; vb = vb || 0; }
+    else if (sortBy === 'modified') { va = va || ''; vb = vb || ''; }
+    else { va = (va || '').toLowerCase(); vb = (vb || '').toLowerCase(); }
+    if (va < vb) return sortDir === 'asc' ? -1 : 1;
+    if (va > vb) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
   const pageNum = Math.max(1, parseInt(page, 10));
   const pageSize = Math.min(200, Math.max(1, parseInt(limit, 10)));
   const total = files.length;

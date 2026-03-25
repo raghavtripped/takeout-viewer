@@ -59,7 +59,7 @@ function extractDomain(url) {
   try {
     return new URL(url).hostname.replace(/^www\./, '');
   } catch {
-    return url.split('/')[2] || '';
+    return (url.split('/')[2] || '').replace(/^www\./, '');
   }
 }
 
@@ -77,14 +77,19 @@ function parseChromeHistory(content) {
 
   const entries = data['Browser History'] || [];
   return entries.map((entry, i) => {
-    // time_usec: microseconds. Google Takeout uses microseconds since Jan 1, 1601 (Windows FILETIME).
-    // To convert to Unix ms: subtract Windows-to-Unix epoch offset (11644473600 seconds), then / 1000 for ms.
+    // time_usec: microseconds since Jan 1, 1601 (Windows FILETIME).
+    // Convert: divide by 1000 for ms, then subtract ms between 1601 and 1970.
     const timeUsec = entry.time_usec || 0;
-    // Heuristic: if result would be before year 2000 or after year 2100, use as unix microseconds directly
-    const windowsEpochOffsetUsec = 11644473600 * 1e6;
-    const unixMs = timeUsec > windowsEpochOffsetUsec
-      ? Math.round((timeUsec - windowsEpochOffsetUsec) / 1000)
-      : Math.round(timeUsec / 1000);
+    const WINDOWS_TO_UNIX_MS = 11644473600000; // ms between 1601-01-01 and 1970-01-01
+    let unixMs = Math.round(timeUsec / 1000) - WINDOWS_TO_UNIX_MS;
+
+    // Sanity check: if result is before year 2000 or after year 2100,
+    // fall back to treating time_usec as plain Unix microseconds.
+    const year2000 = 946684800000;
+    const year2100 = 4102444800000;
+    if (unixMs < year2000 || unixMs > year2100) {
+      unixMs = Math.round(timeUsec / 1000);
+    }
 
     const visitDate = unixMs > 0 ? new Date(unixMs) : null;
 

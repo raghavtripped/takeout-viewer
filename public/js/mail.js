@@ -1,10 +1,16 @@
 'use strict';
 
 function tryFixEncoding(str) {
-  if (!str || !/\xC2[\x80-\xBF]/.test(str)) return str;
+  if (!str) return str;
+  // Only attempt if >2% of characters are 0xC2 (Â), strong mojibake signal
+  let c2count = 0;
+  for (let i = 0; i < Math.min(str.length, 500); i++) {
+    if (str.charCodeAt(i) === 0xC2) c2count++;
+  }
+  if (c2count < Math.max(2, Math.min(str.length, 500) * 0.02)) return str;
   try {
     for (let i = 0; i < str.length; i++) {
-      if (str.charCodeAt(i) > 0xFF) return str; // genuine Unicode, not mojibake
+      if (str.charCodeAt(i) > 0xFF) return str;
     }
     const bytes = new Uint8Array(str.length);
     for (let i = 0; i < str.length; i++) bytes[i] = str.charCodeAt(i) & 0xFF;
@@ -156,7 +162,7 @@ function renderEmailRow(email) {
       <div class="email-body-col">
         <span class="email-subject-text">${escHtml(email.subject || '(no subject)')}</span>
         <span class="email-sep">—</span>
-        <span class="email-snippet">${escHtml(email.snippet || '')}</span>
+        <span class="email-snippet" style="overflow:hidden;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;">${escHtml(email.snippet || '')}</span>
         ${labelChips}
       </div>
       <div class="email-meta">
@@ -206,7 +212,7 @@ function renderEmailDetail(email) {
   let bodyHtml = '';
   const htmlToRender = fixedBodyHtml || (/^\s*<!doctype |^\s*<html/i.test(fixedBodyText) ? fixedBodyText : '');
   if (htmlToRender) {
-    bodyHtml = `<iframe class="email-iframe" srcdoc="${escHtml(htmlToRender)}" sandbox="allow-same-origin" style="width:100%;border:none;min-height:400px;margin-top:16px;" onload="this.style.height=this.contentDocument.body.scrollHeight+40+'px'"></iframe>`;
+    bodyHtml = `<iframe class="email-iframe" srcdoc="${escHtml(htmlToRender)}" sandbox="allow-same-origin allow-popups" style="width:100%;border:none;min-height:400px;margin-top:16px;" onload="this.style.height=this.contentDocument.body.scrollHeight+40+'px'"></iframe>`;
   } else if (fixedBodyText) {
     bodyHtml = `<pre style="margin-top:16px;white-space:pre-wrap;word-wrap:break-word;font-family:inherit;font-size:14px;line-height:1.6;">${escHtml(fixedBodyText)}</pre>`;
   } else {
@@ -240,6 +246,16 @@ function renderEmailDetail(email) {
     </div>`;
   }
 
+  const ccRow = email.cc ? `<br><span style="color:#5f6368;">CC: </span>${escHtml(email.cc)}` : '';
+  const extraHeaders = email.replyTo
+    ? `<div class="email-extra-headers" id="email-extra-headers" style="display:none;margin-top:4px;font-size:12px;color:#5f6368;">
+        <span style="color:#5f6368;">Reply-To: </span>${escHtml(email.replyTo)}
+      </div>`
+    : '';
+  const showMoreBtn = email.replyTo
+    ? `<button class="email-show-more-btn" id="email-show-more-btn" style="font-size:11px;color:#1a73e8;background:none;border:none;padding:2px 0;cursor:pointer;margin-top:2px;">show more</button>`
+    : '';
+
   el('email-detail-content').innerHTML = `
     <h1 class="email-detail-subject">${escHtml(email.subject || '(no subject)')}</h1>
     <div class="email-detail-header">
@@ -249,6 +265,9 @@ function renderEmailDetail(email) {
         <div class="email-detail-to">
           <span style="color:#5f6368;">From: </span>${escHtml(email.from || '')}
           <br><span style="color:#5f6368;">To: </span>${escHtml(email.to || '')}
+          ${ccRow}
+          ${extraHeaders}
+          ${showMoreBtn}
         </div>
       </div>
       <div class="email-detail-date">${escHtml(formatDate(email.date))}</div>
@@ -256,6 +275,18 @@ function renderEmailDetail(email) {
     ${attachmentsHtml}
     <div class="email-body">${bodyHtml}</div>
   `;
+
+  if (email.replyTo) {
+    const btn = el('email-detail-content').querySelector('#email-show-more-btn');
+    const extra = el('email-detail-content').querySelector('#email-extra-headers');
+    if (btn && extra) {
+      btn.addEventListener('click', () => {
+        const hidden = extra.style.display === 'none';
+        extra.style.display = hidden ? '' : 'none';
+        btn.textContent = hidden ? 'show less' : 'show more';
+      });
+    }
+  }
 }
 
 // ── Pagination ─────────────────────────────────────────────────────────────────

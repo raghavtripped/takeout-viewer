@@ -223,10 +223,34 @@ async function indexMboxFiles(mboxFiles) {
 function indexDriveFiles(extractedDir) {
   const start = Date.now();
   emit('indexing_drive', 'Scanning Drive folder…', 68);
-  const driveDir = findDir(extractedDir, ['Google Drive', 'Drive']);
-  if (!driveDir) { emit('indexing_drive', 'No Drive folder found, skipping.', 70); return []; }
 
-  const allPaths = walkDir(driveDir);
+  const MIME_MAP = {
+    pdf: 'application/pdf', txt: 'text/plain', html: 'text/html', htm: 'text/html',
+    csv: 'text/csv', json: 'application/json', xml: 'application/xml',
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
+    webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp', ico: 'image/x-icon',
+    mp4: 'video/mp4', mov: 'video/quicktime', avi: 'video/x-msvideo', mkv: 'video/x-matroska',
+    mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', flac: 'audio/flac',
+    doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    zip: 'application/zip', gz: 'application/gzip', rar: 'application/x-rar-compressed',
+    '7z': 'application/x-7z-compressed',
+  };
+  const PREVIEW_EXTS = new Set(['jpg','jpeg','png','gif','webp','svg','bmp','pdf','txt','html','htm','csv']);
+  const SKIP_FILES = new Set(['.ds_store','thumbs.db','.gitkeep','desktop.ini']);
+
+  let driveDir = findDir(extractedDir, ['Google Drive', 'Drive', 'My Drive']);
+  if (!driveDir) {
+    emit('indexing_drive', 'No Drive folder found, skipping.', 70);
+    return [];
+  }
+
+  const allPaths = walkDir(driveDir).filter(f => {
+    const base = path.basename(f).toLowerCase();
+    return !SKIP_FILES.has(base) && !base.startsWith('.');
+  });
+
   const total = allPaths.length;
   const driveFiles = [];
   let lastEmit = 0;
@@ -234,26 +258,34 @@ function indexDriveFiles(extractedDir) {
   for (const filePath of allPaths) {
     const rel = path.relative(driveDir, filePath);
     const stat = fs.statSync(filePath);
-    const ext = path.extname(filePath).toLowerCase();
-    const folder = path.dirname(rel) === '.' ? '/' : '/' + path.dirname(rel);
-    driveFiles.push({ id: `drive-${driveFiles.length}`, name: path.basename(filePath),
-      path: rel, fullPath: filePath, folder, size: stat.size,
-      modified: stat.mtime.toISOString(), ext: ext || '' });
+    const extRaw = path.extname(filePath).replace(/^\./, '').toLowerCase();
+    const folder = path.dirname(rel) === '.' ? '/' : '/' + path.dirname(rel).replace(/\\/g, '/');
+    const mimeType = MIME_MAP[extRaw] || 'application/octet-stream';
+    const isPreviewable = PREVIEW_EXTS.has(extRaw);
+
+    driveFiles.push({
+      id: `drive-${driveFiles.length}`,
+      name: path.basename(filePath),
+      path: rel,
+      fullPath: filePath,
+      folder,
+      size: stat.size,
+      modified: stat.mtime.toISOString(),
+      ext: extRaw,
+      mimeType,
+      isPreviewable,
+    });
 
     const now = Date.now();
-    if (now - lastEmit > 1000) {
+    if (driveFiles.length % 500 === 0 || now - lastEmit > 1000) {
       lastEmit = now;
-      const elapsed = (now - start) / 1000;
-      const rate = driveFiles.length / elapsed;
-      const remaining = rate > 0 ? (total - driveFiles.length) / rate : 0;
-      emit('indexing_drive',
-        `Drive: ${driveFiles.length.toLocaleString()} / ${total.toLocaleString()} files · ~${fmtDuration(remaining)} left`,
-        68 + Math.round((driveFiles.length / total) * 4));
+      const pct = total > 0 ? Math.round((driveFiles.length / total) * 100) : 0;
+      emit('indexing_drive', `Drive: ${driveFiles.length.toLocaleString()} / ${total.toLocaleString()} files (${pct}%)`, 68 + Math.round(pct * 0.1));
     }
   }
 
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-  emit('indexing_drive', `Indexed ${driveFiles.length.toLocaleString()} Drive files in ${elapsed}s`, 72);
+  emit('indexing_drive', `Drive done — ${driveFiles.length.toLocaleString()} files in ${elapsed}s`, 78);
   return driveFiles;
 }
 
