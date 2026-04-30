@@ -9,6 +9,7 @@ You export your data from Google, drop the zip file into the app, and it indexes
 ## Table of Contents
 
 - [Install the Desktop App (Easiest)](#install-the-desktop-app-easiest)
+- [Windows Setup Guide](#windows-setup-guide)
 - [Build the Desktop App Yourself](#build-the-desktop-app-yourself)
 - [Run from Source (Developers)](#run-from-source-developers)
 - [How to Use It](#how-to-use-it)
@@ -45,12 +46,7 @@ No terminal. No Node.js. Just download and double-click — exactly like install
 
 ### Windows
 
-1. Go to the [**Releases page**](https://github.com/raghavtripped/takeout-viewer/releases)
-2. Download the file ending in `.exe`
-3. Run the installer — click through the prompts
-4. Open **Takeout Viewer** from the Start menu or your Desktop
-
-> **Windows Defender warning?** Click **More info** → **Run anyway**. The app isn't code-signed but runs entirely locally.
+> **There is currently no prebuilt `.exe` installer published.** Windows users need to run the app from source — it sounds scary, but it's about 5 minutes of copy-paste. Follow the [**Windows Setup Guide**](#windows-setup-guide) below.
 
 ### Where your data is stored
 
@@ -58,6 +54,108 @@ No terminal. No Node.js. Just download and double-click — exactly like install
 - **Windows:** `C:\Users\<you>\AppData\Roaming\Takeout Viewer\data\`
 
 Uninstalling the app does **not** delete your indexed data.
+
+---
+
+## Windows Setup Guide
+
+You don't need to be a developer. Follow these steps in order — every click and every command — and the app will be running on your PC.
+
+### Step 1 — Install Node.js
+
+The app is built on Node.js (a free runtime that ships with `npm`, the package manager we'll use).
+
+1. Go to **[nodejs.org](https://nodejs.org)**
+2. Click the big green **LTS** button (e.g. "20.x.x LTS — Recommended For Most Users")
+3. Run the downloaded `.msi` installer. **Click Next on every screen** — the defaults are correct.
+4. When it's done, **close any Command Prompt or PowerShell windows you have open**, otherwise they won't see Node.js.
+
+**Verify it worked.** Press `Win + R`, type `cmd`, hit Enter. In the black window that opens, type:
+```
+node --version
+```
+You should see something like `v20.11.0`. If it says "not recognized", restart your PC and try again.
+
+### Step 2 — Get the source code
+
+Pick **one** of the two options below.
+
+**Option A — Download ZIP (no extra tools needed)**
+
+1. Go to **[github.com/raghavtripped/takeout-viewer](https://github.com/raghavtripped/takeout-viewer)**
+2. Click the green **Code** button → **Download ZIP**
+3. Right-click the downloaded zip → **Extract All…** → pick a location you'll remember (e.g. `C:\Users\<you>\Documents\takeout-viewer`)
+
+**Option B — With Git (if you already have it installed)**
+
+```cmd
+git clone https://github.com/raghavtripped/takeout-viewer.git
+cd takeout-viewer
+```
+
+### Step 3 — Run the app
+
+1. Open the folder you extracted in **File Explorer**.
+2. Find the file named **`setup.bat`** (it has a gear-cog icon).
+3. **Double-click it.**
+
+A black Command Prompt window will open and you'll see:
+```
+Takeout Viewer - Setup
+-------------------------------------
+Node.js v20.x.x found
+Installing dependencies...
+```
+
+The first run takes 1–3 minutes (it downloads ~100 MB of packages). When you see:
+
+```
+Open http://localhost:3000 in your browser
+(Press Ctrl+C to stop the server)
+```
+
+…you're done.
+
+### Step 4 — Open it in your browser
+
+Open Chrome, Edge, or Firefox and go to **[http://localhost:3000](http://localhost:3000)**.
+
+That's it — the app is running entirely on your PC. Now jump to [How to Use It](#how-to-use-it).
+
+### Stopping and restarting
+
+- **To stop the app:** click the black Command Prompt window and press **`Ctrl + C`**, then close it.
+- **To start it again later:** double-click `setup.bat` in the same folder. (After the first run it skips the slow `npm install` if dependencies are already there.)
+
+### Optional — Build a real `.exe` installer for yourself
+
+If you'd rather have a normal desktop app icon (no Command Prompt window, launches from the Start menu), you can build the installer locally.
+
+Open Command Prompt **inside the `takeout-viewer` folder** (Shift + right-click in the folder → "Open PowerShell window here", or `cd` into it from a normal prompt) and run:
+
+```cmd
+npm install
+npm run build:win
+```
+
+This takes 3–10 minutes. When it finishes, look in the `release\` subfolder — you'll find:
+
+- `Takeout Viewer Setup x.x.x.exe` — double-click to install like any normal Windows app
+- A `win-unpacked\` folder — the portable version, runs without installing
+
+> **"Windows protected your PC" / SmartScreen warning?** This is normal — the app isn't code-signed. Click **More info** → **Run anyway**.
+
+### Troubleshooting (Windows)
+
+| Problem | Fix |
+|---|---|
+| `'node' is not recognized as an internal or external command` | Node.js isn't installed, or you opened the terminal *before* installing it. Close all Command Prompt windows and reopen one. |
+| `npm install` fails with `EACCES` or permission errors | Right-click `setup.bat` → **Run as administrator**. |
+| `npm install` fails with `node-gyp` / Python / Visual Studio errors | This app deliberately avoids native compilation — you should never see this. If you do, delete the `node_modules` folder and the `package-lock.json` file, then re-run `setup.bat`. |
+| `Error: listen EADDRINUSE` on port 3000 | Something else is using port 3000. The app auto-falls-back to 3001, 3002, 3003 — just check what URL the terminal printed. |
+| Browser shows "This site can't be reached" | The Command Prompt window must stay open the whole time the app is running. If you closed it, run `setup.bat` again. |
+| Windows Defender / antivirus quarantines a file | Add the `takeout-viewer` folder to your antivirus's exclusions list. The app is fully open-source — you can read every line in the `src/` and `public/` folders. |
+| The black Command Prompt window flashes and disappears | Open Command Prompt manually, `cd` into the folder, and run `setup.bat` from there — you'll be able to read the actual error message. |
 
 ---
 
