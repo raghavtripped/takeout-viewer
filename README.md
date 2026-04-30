@@ -9,7 +9,7 @@ You export your data from Google, drop the zip file into the app, and it indexes
 ## Table of Contents
 
 - [Install the Desktop App (Easiest)](#install-the-desktop-app-easiest)
-- [Windows Setup Guide](#windows-setup-guide)
+- [Windows Setup Guide (build from source)](#windows-setup-guide-build-from-source)
 - [Build the Desktop App Yourself](#build-the-desktop-app-yourself)
 - [Run from Source (Developers)](#run-from-source-developers)
 - [How to Use It](#how-to-use-it)
@@ -46,7 +46,14 @@ No terminal. No Node.js. Just download and double-click — exactly like install
 
 ### Windows
 
-> **There is currently no prebuilt `.exe` installer published.** Windows users need to run the app from source — it sounds scary, but it's about 5 minutes of copy-paste. Follow the [**Windows Setup Guide**](#windows-setup-guide) below.
+1. Go to the [**Releases page**](https://github.com/raghavtripped/takeout-viewer/releases)
+2. Download the file ending in `.exe` (currently `Takeout.Viewer.Setup.1.0.0.exe`)
+3. Run the installer — click through the prompts
+4. Open **Takeout Viewer** from the Start menu or your Desktop
+
+> **"Windows protected your PC" / SmartScreen warning?** Click **More info** → **Run anyway**. The app isn't code-signed but runs entirely locally.
+>
+> Prefer not to use the prebuilt installer? You can [**build it yourself from source**](#windows-setup-guide-build-from-source) instead.
 
 ### Where your data is stored
 
@@ -57,7 +64,9 @@ Uninstalling the app does **not** delete your indexed data.
 
 ---
 
-## Windows Setup Guide
+## Windows Setup Guide (build from source)
+
+> Most Windows users should just install the [`.exe`](#windows) above. This section is for people who want to build the app from source — e.g. on a locked-down work PC, on Windows on ARM, or to verify the binary themselves.
 
 You don't need to be a developer. Follow these steps in order — every click and every command — and the app will be running on your PC.
 
