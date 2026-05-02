@@ -57,10 +57,22 @@ No terminal. No Node.js. Just download and double-click — exactly like install
 
 ### Where your data is stored
 
-- **Mac:** `~/Library/Application Support/Takeout Viewer/data/`
-- **Windows:** `C:\Users\<you>\AppData\Roaming\Takeout Viewer\data\`
+- **Mac:** `~/Library/Application Support/takeout-viewer/`
+- **Windows:** `C:\Users\<you>\AppData\Roaming\takeout-viewer\`
 
 Uninstalling the app does **not** delete your indexed data.
+
+### Freeing up disk space
+
+The app keeps a working copy of every email body, attachment, and the unzipped Takeout contents inside its data folder — for a full Gmail archive this can easily reach 15–30 GB. Your original Takeout downloads in `~/Downloads/` are never touched and stay the source of truth.
+
+To reclaim the space at any time:
+
+1. Quit the app.
+2. Mac: delete `~/Library/Application Support/takeout-viewer/` · Windows: delete `C:\Users\<you>\AppData\Roaming\takeout-viewer\`.
+3. Empty the Trash / Recycle Bin (the space isn't actually freed until you do).
+
+Next time you launch, the app starts empty — paste your Takeout path again and it re-imports in ~20–30 min.
 
 ---
 
@@ -286,6 +298,7 @@ To start fresh at any time, click the 🗑 icon in the top-right corner.
 - **Search bar** — searches within the active tab as you type
 - **Sidebar** — sub-navigation per tab (folders, labels, view modes, filters)
 - **Tabs are hidden** when you have no data for that type — only tabs with content appear
+- **Don't see the Drive / Calendar / Contacts tabs after an import?** Press **`⌘ R`** (Mac) or **`Ctrl R`** (Windows) inside the app window to reload — the sidebar was rendered before the import finished and is just stale. It'll catch up immediately.
 - **Port fallback** — if 3000 is in use, the app automatically tries 3001, 3002, 3003
 
 ---
