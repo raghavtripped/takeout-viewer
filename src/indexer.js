@@ -440,12 +440,24 @@ async function processFiles(filePaths) {
     driveFiles: [], events: [], contacts: [], keepNotes: [], tasks: [],
     chromeBookmarks: [], chromeHistory: [], chatConversations: [], savedLinks: [] });
 
-  // 2. Extract all zips (streaming — no full-file RAM load)
+  // 2. Extract all zips (streaming — no full-file RAM load). A single corrupt
+  // zip should not abort the whole import — log it and continue.
   const totalZipBytes = zipPaths.reduce((s, p) => s + (fs.existsSync(p) ? fs.statSync(p).size : 0), 0);
   emit('extracting', `Extracting ${zipPaths.length} zip file(s) — ${fmtBytes(totalZipBytes)} total…`, 57);
+  const failedZips = [];
   for (const zipPath of zipPaths) {
     checkAbort();
-    await extractZip(zipPath, extractedDir);
+    try {
+      await extractZip(zipPath, extractedDir);
+    } catch (err) {
+      const name = path.basename(zipPath);
+      failedZips.push(name);
+      console.error(`[indexer] Skipping ${name}: ${err.message}`);
+      emit('extracting', `Skipped ${name} (corrupt or partial) — continuing with the rest…`, 67);
+    }
+  }
+  if (failedZips.length > 0) {
+    emit('extracting', `Extracted ${zipPaths.length - failedZips.length}/${zipPaths.length} zips. Skipped: ${failedZips.join(', ')}`, 67);
   }
 
   // 3. Also pick up any mbox files that were inside the zips
@@ -516,6 +528,22 @@ async function processLocalPaths(inputPaths) {
     }
   }
 
+  // Auto-discover Takeout zips at the top level of any passed directory — so
+  // users can paste one folder containing raw downloads without unzipping
+  // first. Only direct children are scanned, to avoid extracting zip files
+  // that are actual Drive content. Standalone .mbox files inside passed dirs
+  // are already picked up by the per-directory walkDir below.
+  for (const dir of localDirs) {
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      if (!entry.name.toLowerCase().endsWith('.zip')) continue;
+      const full = path.join(dir, entry.name);
+      if (!localZips.includes(full)) localZips.push(full);
+    }
+  }
+
   emit('indexing_emails', `Found: ${localDirs.length} folder(s), ${localMbox.length} mbox file(s), ${localZips.length} zip(s)`, 2);
 
   // Aggregate results across all sources
@@ -533,14 +561,26 @@ async function processLocalPaths(inputPaths) {
     db.writeIndex({ indexed: false, indexedAt: new Date().toISOString(), ...agg });
   }
 
-  // 2. Any zip files passed directly — extract them first
+  // 2. Any zip files passed directly — extract them first. A single corrupt
+  // zip should not abort the whole import — log it and continue.
   if (localZips.length > 0) {
     const extractedDir = db.getExtractedDir();
     const totalZipBytes = localZips.reduce((s, p) => s + fs.statSync(p).size, 0);
     emit('extracting', `Extracting ${localZips.length} zip(s) — ${fmtBytes(totalZipBytes)} total…`, 57);
+    const failedZips = [];
     for (const zip of localZips) {
       checkAbort();
-      await extractZip(zip, extractedDir);
+      try {
+        await extractZip(zip, extractedDir);
+      } catch (err) {
+        const name = path.basename(zip);
+        failedZips.push(name);
+        console.error(`[indexer] Skipping ${name}: ${err.message}`);
+        emit('extracting', `Skipped ${name} (corrupt or partial) — continuing with the rest…`, 67);
+      }
+    }
+    if (failedZips.length > 0) {
+      emit('extracting', `Extracted ${localZips.length - failedZips.length}/${localZips.length} zips. Skipped: ${failedZips.join(', ')}`, 67);
     }
     localDirs.push(extractedDir);
   }

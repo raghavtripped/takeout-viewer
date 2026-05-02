@@ -1,6 +1,6 @@
 {
   "name": "takeout-viewer",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Browse your Google Takeout archive locally",
   "main": "electron/main.js",
   "scripts": {

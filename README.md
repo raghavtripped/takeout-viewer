@@ -250,11 +250,10 @@ Or click the green **Code** button → **Download ZIP**, unzip, and open a termi
 
 Fastest method — no upload, app reads directly from disk.
 
-1. Unzip your Takeout files (double-click on macOS; right-click → Extract on Windows)
-2. In the app's **"or use local paths"** section, paste the full path(s) — one per line:
-   - Folder: `/Users/you/Downloads/Takeout`
-   - mbox file: `/Users/you/Downloads/All mail Including Spam and Trash.mbox`
-   - Multiple paths are fine — the app aggregates all of them
+1. Drop all your Takeout downloads into one folder (e.g. `~/Downloads/Takeout`). Zip files and the `.mbox` file can sit side-by-side — **you don't need to unzip anything**. The app extracts them itself.
+2. In the app's **"or use local paths"** section, paste that folder's path:
+   - `/Users/you/Downloads/Takeout`
+   - You can also paste a single `.zip`, a single `.mbox`, or an already-unzipped folder. Multiple paths on separate lines also work.
 3. Click **Process Local Files** and watch the live progress bar
 
 | Stage | Typical time |
